@@ -1,0 +1,26 @@
+.cocina-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.cocina-card { background: white; border-radius: var(--radius-lg); border: 2px solid var(--gray-200); overflow: hidden; box-shadow: var(--shadow-sm); transition: border-color 0.2s; }
+.cocina-card.urgente    { border-color: var(--danger); }
+.cocina-card.advertencia{ border-color: var(--warning); }
+
+.cocina-card-header { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; }
+.cocina-card-header.normal    { background: var(--primary-light); }
+.cocina-card-header.advertencia{ background: #FFF8E1; }
+.cocina-card-header.urgente   { background: #FFEBEE; }
+
+.cocina-mesa  { font-family: var(--font-display); font-size: 20px; font-weight: 800; }
+.cocina-timer { font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 20px; }
+.cocina-timer.ok   { background: #E8F5E9; color: var(--success); }
+.cocina-timer.warn { background: #FFF8E1; color: var(--warning); }
+.cocina-timer.late { background: #FFEBEE; color: var(--danger); animation: pulso 1s infinite; }
+
+@keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.cocina-items { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.cocina-item  { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--gray-200); }
+.cocina-item:last-child { border-bottom: none; }
+.cocina-qty   { font-family: var(--font-display); font-size: 20px; font-weight: 800; color: var(--accent); min-width: 32px; }
+.cocina-nombre{ font-size: 14px; font-weight: 600; }
+.cocina-nota  { font-size: 12px; color: var(--gray-600); background: #FFF8E1; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
+
+.cocina-actions { padding: 10px 14px; display: flex; gap: 6px; border-top: 1px solid var(--gray-100); }
