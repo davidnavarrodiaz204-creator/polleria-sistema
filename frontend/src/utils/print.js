@@ -1,10 +1,18 @@
 // Utilidades de impresión para boletas, tickets de cocina y caja
 
 export const imprimirBoleta = (pedido, config = {}) => {
-  const nombre = config.nombre || 'PollerOS'
-  const ruc = config.ruc || ''
+  const nombre    = config.nombre    || 'PollerOS'
+  const rucLocal  = config.ruc       || ''
   const direccion = config.direccion || ''
-  const telefono = config.telefono || ''
+  const telefono  = config.telefono  || ''
+
+  const TIPO_LABEL = {
+    ticket:       'TICKET DE VENTA',
+    boleta:       'BOLETA DE VENTA',
+    factura:      'FACTURA',
+    nota_credito: 'NOTA DE CREDITO',
+  }
+  const tipoLabel = TIPO_LABEL[pedido.tipoComprobante] || 'TICKET DE VENTA'
 
   const contenido = `
     <html><head>
@@ -20,17 +28,23 @@ export const imprimirBoleta = (pedido, config = {}) => {
       .total-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; padding: 4px 0; }
     </style>
     </head><body>
-      <div class="center big">${config.logo || '🍗'} ${nombre}</div>
-      ${ruc ? `<div class="center">RUC: ${ruc}</div>` : ''}
+      <div class="center big">${nombre}</div>
+      ${rucLocal ? `<div class="center">RUC: ${rucLocal}</div>` : ''}
       ${direccion ? `<div class="center">${direccion}</div>` : ''}
-      ${telefono ? `<div class="center">Tel: ${telefono}</div>` : ''}
+      ${telefono  ? `<div class="center">Tel: ${telefono}</div>` : ''}
       <div class="line"></div>
-      <div class="center bold">BOLETA DE VENTA</div>
+      <div class="center bold">${tipoLabel}</div>
       <div class="center">N° ${String(pedido.numero || '').padStart(6,'0')}</div>
+      <div class="line"></div>
       <div class="row"><span>Fecha:</span><span>${new Date().toLocaleDateString('es-PE')}</span></div>
-      <div class="row"><span>Hora:</span><span>${new Date().toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'})}</span></div>
+      <div class="row"><span>Hora:</span><span>${new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</span></div>
       ${pedido.mesaNumero ? `<div class="row"><span>Mesa:</span><span>${pedido.mesaNumero}</span></div>` : ''}
       ${pedido.mozo ? `<div class="row"><span>Atendido por:</span><span>${pedido.mozo}</span></div>` : ''}
+      ${pedido.tipoComprobante==='factura' && pedido.ruc ? `
+        <div class="line"></div>
+        <div class="row"><span>RUC cliente:</span><span>${pedido.ruc}</span></div>
+        ${pedido.razonSocial ? `<div class="row"><span>Razon social:</span><span style="font-size:10px">${pedido.razonSocial}</span></div>` : ''}
+      ` : ''}
       <div class="line"></div>
       <div class="bold">PRODUCTOS</div>
       <div class="line"></div>
@@ -39,14 +53,17 @@ export const imprimirBoleta = (pedido, config = {}) => {
           <span>${item.cantidad}x ${item.nombre}</span>
           <span>S/ ${(item.precio * item.cantidad).toFixed(2)}</span>
         </div>
-        <div style="font-size:11px;color:#666;padding-left:8px;">@ S/ ${item.precio.toFixed(2)} c/u</div>
+        <div style="font-size:10px;color:#666;padding-left:8px;">@ S/ ${item.precio.toFixed(2)} c/u</div>
       `).join('')}
       <div class="line"></div>
       <div class="total-row"><span>TOTAL:</span><span>S/ ${(pedido.total || 0).toFixed(2)}</span></div>
       ${pedido.metodoPago ? `<div class="row"><span>Pago:</span><span style="text-transform:capitalize">${pedido.metodoPago}</span></div>` : ''}
+      ${pedido.metodoPago==='efectivo' && pedido.vuelto >= 0 ? `
+        <div class="row"><span>Vuelto:</span><span>S/ ${Number(pedido.vuelto).toFixed(2)}</span></div>
+      ` : ''}
       <div class="line"></div>
-      <div class="center">¡Gracias por su preferencia!</div>
-      <div class="center" style="font-size:10px;margin-top:4px;">Vuelva pronto 🍗</div>
+      <div class="center">Gracias por su preferencia!</div>
+      <div class="center" style="font-size:10px;margin-top:4px;">Vuelva pronto</div>
       <br/><br/>
     </body></html>
   `
