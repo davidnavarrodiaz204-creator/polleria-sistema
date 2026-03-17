@@ -22,6 +22,12 @@ const pedidoSchema = new mongoose.Schema({
   estado:        { type: String, enum: ['en_cocina', 'preparando', 'listo', 'entregado', 'cancelado'], default: 'en_cocina' },
   pagado:        { type: Boolean, default: false },
   metodoPago:    { type: String, enum: ['efectivo', 'tarjeta', 'yape', 'plin', 'transferencia'], default: 'efectivo' },
+  // Cliente vinculado
+  clienteId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', default: null },
+  clienteNombre: { type: String, default: '' },
+  clienteDoc:    { type: String, default: '' },
+  // Comprobante
+  tipoComprobante: { type: String, enum: ['ticket','boleta','factura','nota_credito'], default: 'ticket' },
   creadoEn:      { type: Date, default: Date.now },
 }, { timestamps: true });
 

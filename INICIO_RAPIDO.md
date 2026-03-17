@@ -1,32 +1,42 @@
-# 🚀 INICIO RÁPIDO — Probar en tu computadora
+# 🚀 INICIO RÁPIDO — PollerOS
 
-## Requisitos
-- Node.js instalado (descargar en https://nodejs.org — versión LTS)
+## Para probarlo en tu computadora primero:
 
-## Pasos
+### Requisitos
+- Instalar Node.js: https://nodejs.org (descargar versión LTS)
 
-### 1. Abre una terminal en la carpeta `backend`
-```
+### Pasos
+1. Abre esta carpeta `polleria`
+2. Abre la terminal (en Windows: clic derecho → "Abrir en Terminal")
+3. Ejecuta estos comandos uno por uno:
+
+```bash
+# Instalar dependencias del backend
 cd backend
 npm install
-```
 
-### 2. Edita el archivo `.env` con tu MongoDB Atlas URL
-(sigue las instrucciones del README.md)
-
-### 3. Inicia el backend
-```
-npm run dev
-```
-
-### 4. Abre OTRA terminal en la carpeta `frontend`
-```
+# En otra terminal, instalar dependencias del frontend
 cd frontend
 npm install
-npm run dev
 ```
 
-### 5. Abre tu navegador en:
-http://localhost:5173
+4. Edita el archivo `backend/.env` y pon tu MongoDB URI
+5. Inicia el backend:
+```bash
+cd backend
+npm run dev
+```
+6. En otra terminal, inicia el frontend:
+```bash
+cd frontend
+npm run dev
+```
+7. Abre tu navegador en: http://localhost:5173
 
-### Usuario: admin  |  Contraseña: admin123
+### Usuarios de prueba
+- admin / admin123
+- carlos / mozo123
+- miguel / cocina123
+
+---
+Para subir a internet, sigue las instrucciones del README.md

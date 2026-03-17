@@ -1,83 +1,82 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
+import { io } from 'socket.io-client'
 import api from '../utils/api'
 import { imprimirTicketCocina } from '../utils/print'
-import './Cocina.css'
-
-const MINUTOS = (iso) => Math.floor((Date.now() - new Date(iso)) / 60000)
 
 export default function Cocina() {
   const [pedidos, setPedidos] = useState([])
-  const audioRef = useRef(null)
 
-  const cargar = async () => {
-    const { data } = await api.get('/pedidos/cocina')
-    setPedidos(data)
-  }
+  const cargar = () => api.get('/pedidos/cocina').then(r => setPedidos(r.data))
 
   useEffect(() => {
     cargar()
-    const t = setInterval(cargar, 10000)
-    return () => clearInterval(t)
+    const BASE = import.meta.env.VITE_API_URL || ''
+    const socket = io(BASE)
+    socket.on('nuevo_pedido', () => cargar())
+    socket.on('pedido_listo', () => cargar())
+    return () => socket.disconnect()
   }, [])
+
+  const minutos = (fecha) => Math.floor((Date.now() - new Date(fecha)) / 60000)
 
   const marcarListo = async (id) => {
     await api.put(`/pedidos/${id}`, { estado: 'listo' })
     cargar()
   }
 
-  const marcarEntregado = async (id) => {
-    await api.put(`/pedidos/${id}`, { estado: 'entregado' })
+  const cancelar = async (id) => {
+    if (!confirm('¿Cancelar este pedido?')) return
+    await api.put(`/pedidos/${id}`, { estado: 'cancelado' })
     cargar()
   }
 
   return (
     <div className="page">
       <div className="page-header">
-        <div>
-          <div className="page-title">Cocina 👨‍🍳</div>
-          <div className="page-sub">{pedidos.length} pedido(s) pendiente(s) — actualiza cada 10s</div>
-        </div>
-        <button className="btn btn-ghost btn-sm" onClick={cargar}>🔄 Actualizar</button>
+        <div><div className="page-title">Pantalla Cocina 👨‍🍳</div>
+        <div className="page-sub">{pedidos.length} pedido(s) pendiente(s)</div></div>
+        <button className="btn btn-ghost" onClick={cargar}>🔄 Actualizar</button>
       </div>
 
       {!pedidos.length ? (
-        <div className="card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: 48 }}>✅</div>
-          <div style={{ fontSize: 18, fontWeight: 700, marginTop: 12 }}>¡Todo listo!</div>
-          <div style={{ color: 'var(--gray-500)', marginTop: 4 }}>No hay pedidos pendientes</div>
+        <div style={{textAlign:'center',padding:'60px 20px',color:'var(--gray-400)'}}>
+          <div style={{fontSize:64}}>✅</div>
+          <div style={{fontSize:18,fontWeight:700,marginTop:12}}>Todo al día</div>
+          <div style={{fontSize:14,marginTop:4}}>No hay pedidos pendientes</div>
         </div>
       ) : (
-        <div className="cocina-grid">
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16}}>
           {pedidos.map(p => {
-            const min = MINUTOS(p.creadoEn)
-            const urgente = min >= 15
-            const advertencia = min >= 8 && min < 15
+            const mins = minutos(p.creadoEn)
+            const urgente = mins >= 15
+            const advertencia = mins >= 8 && mins < 15
             return (
-              <div key={p._id} className={`cocina-card ${urgente ? 'urgente' : advertencia ? 'advertencia' : ''}`}>
-                <div className={`cocina-card-header ${urgente ? 'urgente' : advertencia ? 'advertencia' : 'normal'}`}>
+              <div key={p._id} style={{background:'white',borderRadius:'var(--radius-lg)',border:`2px solid ${urgente?'var(--danger)':advertencia?'var(--warning)':'var(--gray-200)'}`,overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+                <div style={{padding:'10px 14px',background:urgente?'#FFEBEE':advertencia?'#FFF8E1':'var(--primary-light)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                   <div>
-                    <div className="cocina-mesa">
-                      {p.tipo === 'mesa' ? `Mesa ${p.mesaNumero}` : p.tipo === 'delivery' ? '🛵 Delivery' : '🥡 Para llevar'}
+                    <div style={{fontFamily:'var(--font-display)',fontSize:18,fontWeight:800}}>
+                      {p.tipo==='delivery' ? '🛵 Delivery' : p.mesaNumero ? `Mesa ${p.mesaNumero}` : 'Para llevar'}
                     </div>
-                    <div style={{ fontSize: 11, opacity: 0.7 }}>#{p.numero} · {p.mozo}</div>
+                    <div style={{fontSize:11,color:'var(--gray-600)'}}>#{p.numero} · {p.mozo}</div>
                   </div>
-                  <div className={`cocina-timer ${urgente ? 'late' : advertencia ? 'warn' : 'ok'}`}>
-                    ⏱ {min}m
+                  <div style={{fontWeight:700,fontSize:13,color:urgente?'var(--danger)':advertencia?'var(--warning)':'var(--success)'}}>
+                    ⏱ {mins}m
                   </div>
                 </div>
-                <div className="cocina-items">
-                  {p.items.map((item, i) => (
-                    <div key={i} className="cocina-item">
-                      <span className="cocina-qty">{item.cantidad}x</span>
-                      <span className="cocina-nombre">{item.emoji} {item.nombre}</span>
+                <div style={{padding:'10px 14px'}}>
+                  {p.items.map((it,i) => (
+                    <div key={i} style={{display:'flex',gap:8,padding:'4px 0',borderBottom:'1px dashed var(--gray-200)',fontSize:14}}>
+                      <span style={{fontWeight:800,color:'var(--accent)',minWidth:24}}>{it.cantidad}x</span>
+                      <span>{it.nombre}</span>
+                      {it.nota && <span style={{fontSize:11,color:'var(--warning)',marginLeft:'auto'}}>⚠ {it.nota}</span>}
                     </div>
                   ))}
-                  {p.nota && <div className="cocina-nota">📝 {p.nota}</div>}
+                  {p.nota && <div style={{marginTop:6,fontSize:12,color:'var(--gray-600)',background:'var(--gray-100)',padding:'4px 8px',borderRadius:6}}>📝 {p.nota}</div>}
                 </div>
-                <div className="cocina-actions">
-                  <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => marcarListo(p._id)}>✅ Listo</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => imprimirTicketCocina(p)}>🖨️</button>
-                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => marcarEntregado(p._id)}>🍽️ Entregado</button>
+                <div style={{padding:'8px 14px',display:'flex',gap:8,borderTop:'1px solid var(--gray-100)'}}>
+                  <button className="btn btn-success" style={{flex:1,fontSize:13,padding:'8px'}} onClick={()=>marcarListo(p._id)}>✅ Listo</button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>imprimirTicketCocina(p)}>🖨️</button>
+                  <button className="btn btn-danger btn-sm" onClick={()=>cancelar(p._id)}>✕</button>
                 </div>
               </div>
             )

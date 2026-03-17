@@ -1,0 +1,40 @@
+services:
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  - type: web
+    name: polleria-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false   # lo ingresas manualmente en Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: APIS_PERU_TOKEN
+        value: apis-token-demo
+      - key: CALLMEBOT_APIKEY
+        value: ""
+      - key: RESTAURANTE_NOMBRE
+        value: PollerOS
+
+  # ── Frontend React ────────────────────────────────────────────────────────────
+  - type: web
+    name: polleria-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        sync: false   # URL del backend, la ingresas en Render dashboard
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -38,6 +38,8 @@ app.use('/api/mesas',     require('./routes/mesas'));
 app.use('/api/menu',      require('./routes/menu'));
 app.use('/api/pedidos',   require('./routes/pedidos'));
 app.use('/api/delivery',  require('./routes/delivery'));
+app.use('/api/clientes',  require('./routes/clientes'));
+app.use('/api/whatsapp',  require('./routes/whatsapp'));
 app.use('/api/caja',      require('./routes/caja'));
 app.use('/api/egresos',   require('./routes/egresos'));
 app.use('/api/reportes',  require('./routes/reportes'));

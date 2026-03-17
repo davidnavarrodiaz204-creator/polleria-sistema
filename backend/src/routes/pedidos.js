@@ -1,6 +1,7 @@
-const router = require('express').Router();
-const Pedido = require('../models/Pedido');
-const Mesa = require('../models/Mesa');
+const router  = require('express').Router();
+const Pedido  = require('../models/Pedido');
+const Mesa    = require('../models/Mesa');
+const Cliente = require('../models/Cliente');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 
@@ -72,6 +73,14 @@ router.put('/:id', auth, async (req, res) => {
     if (req.body.estado === 'entregado' && pedido.mesaId) {
       await Mesa.findByIdAndUpdate(pedido.mesaId, { estado: 'lista' });
       emit.mesaActualizada(req.io, await Mesa.findById(pedido.mesaId));
+    }
+
+    // Actualizar estadísticas del cliente al pagar
+    if (req.body.pagado === true && !anterior.pagado && pedido.clienteId) {
+      await Cliente.findByIdAndUpdate(pedido.clienteId, {
+        $inc: { totalCompras: 1, montoAcumulado: pedido.total },
+        ultimaVisita: new Date(),
+      });
     }
 
     res.json(pedido);

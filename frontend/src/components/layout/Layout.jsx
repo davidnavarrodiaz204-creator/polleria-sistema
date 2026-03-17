@@ -11,10 +11,12 @@ const NAV = [
   { to: '/cocina',      icon: '👨‍🍳', label: 'Cocina',         roles: ['admin','cocina'] },
   { to: '/delivery',    icon: '🛵', label: 'Delivery',      roles: ['admin','mozo','delivery'] },
   { to: '/caja',        icon: '💵', label: 'Caja',          roles: ['admin'] },
+  { to: '/clientes',    icon: '👤', label: 'Clientes',       roles: ['admin'] },
   { to: '/carta',       icon: '📖', label: 'Carta / Menú',  roles: ['admin'] },
   { to: '/usuarios',    icon: '👥', label: 'Usuarios',      roles: ['admin'] },
-  { to: '/reportes',    icon: '📈', label: 'Reportes',      roles: ['admin'] },
-  { to: '/configuracion',icon:'⚙️', label: 'Configuración', roles: ['admin'] },
+  { to: '/reportes',     icon: '📈', label: 'Reportes',      roles: ['admin'] },
+  { to: '/whatsapp',     icon: '💬', label: 'WhatsApp',       roles: ['admin'] },
+  { to: '/configuracion',icon: '⚙️', label: 'Configuración',  roles: ['admin'] },
 ]
 
 export default function Layout() {
