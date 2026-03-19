@@ -187,6 +187,48 @@ router.get('/consultar-ruc/:ruc', authMiddleware, async (req, res) => {
   }
 });
 
+
+// GET /api/clientes/consultar/:numero — ruta unificada (DNI 8 dig o RUC 11 dig)
+router.get('/consultar/:numero', authMiddleware, async (req, res) => {
+  try {
+    const { numero } = req.params;
+    const limpio = numero.replace(/\D/g, '');
+
+    // Primero buscar en base de datos local
+    const clienteLocal = await Cliente.findOne({ numDoc: limpio });
+    if (clienteLocal) {
+      return res.json({
+        tipoDoc:     clienteLocal.tipoDoc,
+        nombre:      clienteLocal.nombre,
+        razonSocial: clienteLocal.razonSocial || '',
+        direccion:   clienteLocal.direccion   || '',
+        telefono:    clienteLocal.telefono    || '',
+        fuenteLocal: true
+      });
+    }
+
+    // Consultar API externa según longitud
+    if (limpio.length === 8) {
+      const r = await consultarDNI(limpio);
+      return res.json({ tipoDoc: 'dni', nombre: r.nombre, fuente: r.fuente });
+    }
+    if (limpio.length === 11) {
+      const r = await consultarRUC(limpio);
+      return res.json({
+        tipoDoc:     'ruc',
+        nombre:      r.nombre,
+        razonSocial: r.nombre,
+        direccion:   r.direccion || '',
+        fuente:      r.fuente
+      });
+    }
+
+    return res.status(400).json({ error: 'Debe tener 8 dígitos (DNI) o 11 (RUC)' });
+  } catch (error) {
+    res.status(503).json({ apiError: true, mensaje: error.message });
+  }
+});
+
 // ============================================================
 // CRUD CLIENTES
 // ============================================================

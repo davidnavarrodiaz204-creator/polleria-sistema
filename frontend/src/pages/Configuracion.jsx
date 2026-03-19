@@ -201,7 +201,7 @@ export default function Configuracion() {
               cada 6 horas. Este botón es adicional para backups manuales bajo demanda.
             </div>
             <button className="btn btn-primary" onClick={crearBackup} disabled={creandoBk}>
-              {creandoBk ? 'Creando backup...' : 'Crear Backup Ahora'}
+              {creandoBk ? 'Generando y descargando...' : '⬇ Crear y Descargar Backup'}
             </button>
             {msgBk && (
               <div style={{
