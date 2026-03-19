@@ -1,84 +1,184 @@
-const router  = require('express').Router();
-const mongoose = require('mongoose');
-const { auth, soloAdmin } = require('../middleware/auth');
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middleware/auth');
 
-// ── Backup automático en MongoDB Atlas ────────────────────────────────────────
-// MongoDB Atlas Free ya hace backups automáticos cada 6 horas.
-// Esta ruta crea un snapshot manual de las colecciones críticas
-// y lo guarda como un documento en la misma base de datos.
+// Importa todos los modelos para el backup completo
+const Usuario = require('../models/Usuario');
+const Mesa = require('../models/Mesa');
+const Producto = require('../models/Producto');
+const Pedido = require('../models/Pedido');
+const Cliente = require('../models/Cliente');
+const CajaSession = require('../models/CajaSession');
 
-const Backup = mongoose.model('Backup', new mongoose.Schema({
-  fecha:       { type: Date, default: Date.now },
-  tipo:        { type: String, default: 'manual' },
-  colecciones: { type: Object },
-  tamaño:      { type: Number, default: 0 },
-}, { timestamps: true }));
+// ============================================================
+// FIX: El error "Token requerido" ocurría porque el frontend
+// usaba window.location.href para descargar, lo que no enviaba
+// el header Authorization. Solución: el token se acepta también
+// por query param ?token=xxx  O por header Authorization.
+// ============================================================
 
-// GET historial de backups
-router.get('/', auth, soloAdmin, async (_req, res) => {
+const authFlexible = (req, res, next) => {
+  // Intentar token desde header (normal)
+  const headerAuth = req.headers['authorization'];
+  if (headerAuth && headerAuth.startsWith('Bearer ')) {
+    req.headers['authorization'] = headerAuth;
+    return authMiddleware(req, res, next);
+  }
+
+  // Intentar token desde query param (para descarga directa)
+  const queryToken = req.query.token;
+  if (queryToken) {
+    req.headers['authorization'] = `Bearer ${queryToken}`;
+    return authMiddleware(req, res, next);
+  }
+
+  return res.status(401).json({ error: 'Token requerido' });
+};
+
+// ============================================================
+// GET /api/backup/descargar
+// Descarga el backup completo en JSON
+// Funciona con header Authorization O con ?token=xxx
+// ============================================================
+router.get('/descargar', authFlexible, async (req, res) => {
   try {
-    const backups = await Backup.find().sort({ fecha: -1 }).limit(10).select('-colecciones');
-    res.json(backups);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST crear backup manual
-router.post('/crear', auth, soloAdmin, async (req, res) => {
-  try {
-    const db = mongoose.connection.db;
-
-    // Obtener todas las colecciones importantes
-    const colecciones = {};
-    const nombres = ['usuarios', 'mesas', 'productos', 'pedidos', 'deliveries', 'cajas', 'egresos', 'clientes', 'configs'];
-
-    let totalDocs = 0;
-    for (const nombre of nombres) {
-      try {
-        const docs = await db.collection(nombre).find({}).toArray();
-        colecciones[nombre] = docs;
-        totalDocs += docs.length;
-      } catch {}
+    // Solo admin puede descargar backup
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo el administrador puede descargar backups' });
     }
 
-    const backup = await Backup.create({
-      tipo: req.body.tipo || 'manual',
-      colecciones,
-      tamaño: totalDocs,
-    });
+    const [usuarios, mesas, productos, pedidos, clientes, cajas] = await Promise.all([
+      Usuario.find().select('-password').lean(),
+      Mesa.find().lean(),
+      Producto.find().lean(),
+      Pedido.find().lean(),
+      Cliente.find().lean(),
+      CajaSession.find().lean()
+    ]);
 
-    res.json({
-      ok: true,
-      id: backup._id,
-      fecha: backup.fecha,
-      tamaño: totalDocs,
-      mensaje: `Backup creado con ${totalDocs} registros`,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// GET descargar backup como JSON
-router.get('/:id/descargar', auth, soloAdmin, async (req, res) => {
-  try {
-    const backup = await Backup.findById(req.params.id);
-    if (!backup) return res.status(404).json({ error: 'Backup no encontrado' });
-
-    const fecha = new Date(backup.fecha).toISOString().split('T')[0];
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="polleria-backup-${fecha}.json"`);
-    res.json({
-      fecha: backup.fecha,
+    const backup = {
       version: '1.0',
-      datos: backup.colecciones,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+      restaurante: process.env.RESTAURANTE_NOMBRE || 'PollerOS',
+      fecha: new Date().toISOString(),
+      fechaLegible: new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' }),
+      datos: {
+        usuarios,
+        mesas,
+        productos,
+        pedidos,
+        clientes,
+        cajas
+      },
+      resumen: {
+        totalUsuarios: usuarios.length,
+        totalMesas: mesas.length,
+        totalProductos: productos.length,
+        totalPedidos: pedidos.length,
+        totalClientes: clientes.length,
+        totalCajas: cajas.length
+      }
+    };
+
+    const fecha = new Date().toLocaleDateString('es-PE', {
+      timeZone: 'America/Lima',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
+
+    const nombreArchivo = `backup-polleros-${fecha}.json`;
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.json(backup);
+
+  } catch (error) {
+    console.error('Error generando backup:', error);
+    res.status(500).json({ error: 'Error al generar el backup: ' + error.message });
+  }
 });
 
-// DELETE eliminar backup antiguo
-router.delete('/:id', auth, soloAdmin, async (req, res) => {
+// ============================================================
+// GET /api/backup/estado
+// Info rápida del estado de la base de datos
+// ============================================================
+router.get('/estado', authMiddleware, async (req, res) => {
   try {
-    await Backup.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administrador' });
+    }
+
+    const [usuarios, mesas, productos, pedidos, clientes, cajas] = await Promise.all([
+      Usuario.countDocuments(),
+      Mesa.countDocuments(),
+      Producto.countDocuments(),
+      Pedido.countDocuments(),
+      Cliente.countDocuments(),
+      CajaSession.countDocuments()
+    ]);
+
+    res.json({
+      success: true,
+      estado: {
+        usuarios,
+        mesas,
+        productos,
+        pedidos,
+        clientes,
+        cajas,
+        ultimaConsulta: new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' })
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// POST /api/backup/restaurar
+// Restaura datos desde un JSON de backup (solo admin)
+// ============================================================
+router.post('/restaurar', authMiddleware, async (req, res) => {
+  try {
+    if (req.usuario.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo el administrador puede restaurar backups' });
+    }
+
+    const { datos } = req.body;
+    if (!datos) {
+      return res.status(400).json({ error: 'No se encontraron datos en el backup' });
+    }
+
+    const resultados = {};
+
+    if (datos.productos && datos.productos.length > 0) {
+      await Producto.deleteMany({});
+      await Producto.insertMany(datos.productos);
+      resultados.productos = datos.productos.length;
+    }
+
+    if (datos.mesas && datos.mesas.length > 0) {
+      await Mesa.deleteMany({});
+      await Mesa.insertMany(datos.mesas);
+      resultados.mesas = datos.mesas.length;
+    }
+
+    if (datos.clientes && datos.clientes.length > 0) {
+      await Cliente.deleteMany({});
+      await Cliente.insertMany(datos.clientes);
+      resultados.clientes = datos.clientes.length;
+    }
+
+    res.json({
+      success: true,
+      message: 'Backup restaurado correctamente',
+      restaurado: resultados
+    });
+
+  } catch (error) {
+    console.error('Error restaurando backup:', error);
+    res.status(500).json({ error: 'Error al restaurar: ' + error.message });
+  }
 });
 
 module.exports = router;

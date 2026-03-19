@@ -1,134 +1,256 @@
-const router  = require('express').Router();
-const axios   = require('axios');
+const express = require('express');
+const router = express.Router();
 const Cliente = require('../models/Cliente');
-const { auth } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 
-// ── Consultar DNI o RUC ───────────────────────────────────────────────────────
-router.get('/consultar/:numDoc', auth, async (req, res) => {
-  const limpio = req.params.numDoc.replace(/\D/g, '');
+// ============================================================
+// CONSULTA DNI/RUC - SISTEMA DE FALLBACK TRIPLE SIN TOKEN FIJO
+// Token opcional: si existe en ENV lo usa, si no igual funciona
+// ============================================================
 
-  if (limpio.length !== 8 && limpio.length !== 11)
-    return res.status(400).json({ error: 'Ingresa 8 dígitos (DNI) o 11 (RUC)' });
-
-  // 1. Buscar primero en base de datos propia
-  const existe = await Cliente.findOne({ numDoc: limpio });
-  if (existe) return res.json({ ...existe.toObject(), fuenteLocal: true });
-
+const consultarDNI = async (dni) => {
   const token = process.env.APIS_PERU_TOKEN || '';
 
-  // 2. Si no hay token configurado, devolver vacío para llenado manual
-  if (!token || token === 'apis-token-demo') {
-    return res.json({
-      tipoDoc: limpio.length === 8 ? 'dni' : 'ruc',
-      numDoc: limpio,
-      nombre: '', razonSocial: '', direccion: '',
-      fuenteLocal: false, apiError: true,
-      mensaje: 'Configura APIS_PERU_TOKEN en el .env para búsqueda automática. Ver README.',
-    });
+  // === API 1: apis.net.pe con token (si hay token) ===
+  if (token) {
+    try {
+      const res = await fetch(`https://api.apis.net.pe/v2/dni?numero=${dni}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(5000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.nombres) {
+          return {
+            nombre: `${data.nombres} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim(),
+            fuente: 'apis.net.pe'
+          };
+        }
+      }
+    } catch (e) {
+      console.log('API 1 (apis.net.pe token) falló:', e.message);
+    }
   }
 
+  // === API 2: apiperu.dev - SIN TOKEN ===
   try {
-    let datos = null;
-
-    if (limpio.length === 8) {
-      // DNI — apis.net.pe
-      const { data } = await axios.get(
-        `https://api.apis.net.pe/v2/reniec/dni?numero=${limpio}`,
-        { timeout: 8000, headers: { Authorization: `Bearer ${token}` } }
-      );
-      datos = {
-        tipoDoc:  'dni',
-        numDoc:   limpio,
-        nombre:   [data.nombres, data.apellidoPa, data.apellidoMa].filter(Boolean).join(' ').trim(),
-        direccion: data.direccion || '',
-      };
-    } else {
-      // RUC — apis.net.pe
-      const { data } = await axios.get(
-        `https://api.apis.net.pe/v2/sunat/ruc?numero=${limpio}`,
-        { timeout: 8000, headers: { Authorization: `Bearer ${token}` } }
-      );
-      datos = {
-        tipoDoc:     'ruc',
-        numDoc:      limpio,
-        nombre:      data.razonSocial || '',
-        razonSocial: data.razonSocial || '',
-        direccion:   data.direccionCompleta || data.direccion || '',
-        telefono:    data.telefonos?.[0] || '',
-        estado:      data.estado || '',
-      };
-    }
-
-    res.json({ ...datos, fuenteLocal: false });
-
-  } catch (err) {
-    const status = err.response?.status;
-    let mensaje = 'No se encontró. Completa los datos manualmente.';
-    if (status === 401) mensaje = 'Token inválido. Revisa APIS_PERU_TOKEN en el .env';
-    if (status === 422) mensaje = 'Número no encontrado en SUNAT/RENIEC.';
-
-    res.json({
-      tipoDoc: limpio.length === 8 ? 'dni' : 'ruc',
-      numDoc: limpio, nombre: '', razonSocial: '', direccion: '',
-      fuenteLocal: false, apiError: true, mensaje,
+    const res = await fetch(`https://apiperu.dev/api/dni/${dni}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000)
     });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.data && data.data.nombre_completo) {
+        return {
+          nombre: data.data.nombre_completo,
+          fuente: 'apiperu.dev'
+        };
+      }
+      if (data.nombre) {
+        return { nombre: data.nombre, fuente: 'apiperu.dev' };
+      }
+    }
+  } catch (e) {
+    console.log('API 2 (apiperu.dev) falló:', e.message);
+  }
+
+  // === API 3: apis.net.pe v1 sin token (fallback público) ===
+  try {
+    const res = await fetch(`https://api.apis.net.pe/v1/dni?numero=${dni}`, {
+      headers: { 'Referer': 'https://apis.net.pe' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.nombres) {
+        return {
+          nombre: `${data.nombres} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim(),
+          fuente: 'apis.net.pe-v1'
+        };
+      }
+    }
+  } catch (e) {
+    console.log('API 3 (apis.net.pe v1) falló:', e.message);
+  }
+
+  throw new Error('No se pudo consultar el DNI en este momento. Ingrese el nombre manualmente.');
+};
+
+const consultarRUC = async (ruc) => {
+  const token = process.env.APIS_PERU_TOKEN || '';
+
+  // === API 1: apis.net.pe con token (si hay token) ===
+  if (token) {
+    try {
+      const res = await fetch(`https://api.apis.net.pe/v2/ruc?numero=${ruc}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(5000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.razonSocial) {
+          return {
+            nombre: data.razonSocial,
+            direccion: data.direccion || '',
+            estado: data.estado || '',
+            condicion: data.condicion || '',
+            fuente: 'apis.net.pe'
+          };
+        }
+      }
+    } catch (e) {
+      console.log('API 1 RUC (apis.net.pe token) falló:', e.message);
+    }
+  }
+
+  // === API 2: apiperu.dev - SIN TOKEN ===
+  try {
+    const res = await fetch(`https://apiperu.dev/api/ruc/${ruc}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.data && data.data.nombre_o_razon_social) {
+        return {
+          nombre: data.data.nombre_o_razon_social,
+          direccion: data.data.direccion || '',
+          estado: data.data.estado || '',
+          condicion: data.data.condicion || '',
+          fuente: 'apiperu.dev'
+        };
+      }
+    }
+  } catch (e) {
+    console.log('API 2 RUC (apiperu.dev) falló:', e.message);
+  }
+
+  // === API 3: apis.net.pe v1 sin token ===
+  try {
+    const res = await fetch(`https://api.apis.net.pe/v1/ruc?numero=${ruc}`, {
+      headers: { 'Referer': 'https://apis.net.pe' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.razonSocial) {
+        return {
+          nombre: data.razonSocial,
+          direccion: data.direccion || '',
+          estado: data.estado || '',
+          fuente: 'apis.net.pe-v1'
+        };
+      }
+    }
+  } catch (e) {
+    console.log('API 3 RUC (apis.net.pe v1) falló:', e.message);
+  }
+
+  throw new Error('No se pudo consultar el RUC en este momento. Ingrese los datos manualmente.');
+};
+
+// ============================================================
+// ENDPOINTS DNI / RUC
+// ============================================================
+
+// GET /api/clientes/consultar-dni/:dni
+router.get('/consultar-dni/:dni', authMiddleware, async (req, res) => {
+  try {
+    const { dni } = req.params;
+    if (!/^\d{8}$/.test(dni)) {
+      return res.status(400).json({ error: 'DNI debe tener exactamente 8 dígitos' });
+    }
+    const resultado = await consultarDNI(dni);
+    res.json({ success: true, ...resultado });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error.message });
   }
 });
 
-// ── CRUD ──────────────────────────────────────────────────────────────────────
-router.get('/', auth, async (req, res) => {
+// GET /api/clientes/consultar-ruc/:ruc
+router.get('/consultar-ruc/:ruc', authMiddleware, async (req, res) => {
   try {
-    const { q } = req.query;
-    const filtro = q ? {
-      $or: [
-        { numDoc:  { $regex: q, $options: 'i' } },
-        { nombre:  { $regex: q, $options: 'i' } },
-        { celular: { $regex: q, $options: 'i' } },
-      ]
-    } : {};
-    const clientes = await Cliente.find({ ...filtro, activo: true })
-      .sort({ ultimaVisita: -1 }).limit(100);
+    const { ruc } = req.params;
+    if (!/^\d{11}$/.test(ruc)) {
+      return res.status(400).json({ error: 'RUC debe tener exactamente 11 dígitos' });
+    }
+    const resultado = await consultarRUC(ruc);
+    res.json({ success: true, ...resultado });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// CRUD CLIENTES
+// ============================================================
+
+// GET /api/clientes — listar todos
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const clientes = await Cliente.find().sort({ createdAt: -1 });
     res.json(clientes);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.get('/:id', auth, async (req, res) => {
+// GET /api/clientes/:id — obtener uno
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const c = await Cliente.findById(req.params.id);
-    if (!c) return res.status(404).json({ error: 'No encontrado' });
-    res.json(c);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const cliente = await Cliente.findById(req.params.id);
+    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(cliente);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.post('/', auth, async (req, res) => {
+// POST /api/clientes — crear cliente
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { numDoc } = req.body;
-    if (!numDoc) return res.status(400).json({ error: 'Número de documento requerido' });
-    const existe = await Cliente.findOne({ numDoc });
-    if (existe) {
-      // Actualizar datos si vienen nuevos
-      Object.assign(existe, req.body);
-      await existe.save();
-      return res.json(existe);
-    }
-    const cliente = await Cliente.create(req.body);
+    const cliente = new Cliente(req.body);
+    await cliente.save();
     res.status(201).json(cliente);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (error) {
+    if (error.code === 11000) {
+      res.status(400).json({ error: 'Ya existe un cliente con ese DNI/RUC' });
+    } else {
+      res.status(400).json({ error: error.message });
+    }
+  }
 });
 
-router.put('/:id', auth, async (req, res) => {
+// PUT /api/clientes/:id — actualizar cliente
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const c = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!c) return res.status(404).json({ error: 'No encontrado' });
-    res.json(c);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const cliente = await Cliente.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(cliente);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-router.delete('/:id', auth, async (req, res) => {
+// DELETE /api/clientes/:id — eliminar cliente
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    await Cliente.findByIdAndUpdate(req.params.id, { activo: false });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const cliente = await Cliente.findByIdAndDelete(req.params.id);
+    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json({ message: 'Cliente eliminado correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;
