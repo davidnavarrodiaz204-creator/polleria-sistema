@@ -9,6 +9,7 @@ const Producto = require('../models/Producto');
 const Pedido = require('../models/Pedido');
 const Cliente = require('../models/Cliente');
 const CajaSession = require('../models/CajaSession');
+const { auth: authMiddleware } = require('../middleware/auth');
 
 // ============================================================
 // FIX: El error "Token requerido" ocurría porque el frontend

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Cliente = require('../models/Cliente');
-const authMiddleware = require('../middleware/auth');
+const { auth: authMiddleware } = require('../middleware/auth');
 
 // ============================================================
 // CONSULTA DNI/RUC - SISTEMA DE FALLBACK TRIPLE SIN TOKEN FIJO
