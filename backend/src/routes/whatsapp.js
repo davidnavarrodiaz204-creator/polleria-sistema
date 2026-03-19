@@ -137,3 +137,4 @@ router.post('/enviar-individual', auth, soloAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
