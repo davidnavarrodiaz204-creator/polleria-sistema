@@ -44,24 +44,47 @@ export default function Configuracion() {
     finally { setGuardando(false) }
   }
 
+  // Descarga real usando fetch + blob (evita bloqueo del navegador)
+  const descargarDirecto = async () => {
+    const token = localStorage.getItem('token')
+    const baseUrl = import.meta.env.VITE_API_URL || ''
+    const response = await fetch(`${baseUrl}/api/backup/descargar`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!response.ok) {
+      const err = await response.json()
+      throw new Error(err.error || 'Error al descargar')
+    }
+    const blob = await response.blob()
+    const fecha = new Date().toISOString().split('T')[0]
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `polleria-backup-${fecha}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const crearBackup = async () => {
     setCreandoBk(true); setMsgBk('')
     try {
       const { data } = await api.post('/backup/crear', { tipo: 'manual' })
-      setMsgBk(`Backup creado: ${data.tamaño} registros guardados`)
-      cargarBackups()
+      setMsgBk('Descargando backup...')
+      await descargarDirecto()
+      setMsgBk(`✅ Backup descargado: ${data.tamaño} registros`)
     } catch (err) {
       setMsgBk('Error: ' + (err.response?.data?.error || err.message))
     } finally { setCreandoBk(false) }
   }
 
-  const descargarBackup = (id, fecha) => {
-    const token = localStorage.getItem('token')
-    const url = (import.meta.env.VITE_API_URL || '') + `/api/backup/${id}/descargar?token=${token}`
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `polleria-backup-${fecha}.json`
-    a.click()
+  const descargarBackup = async () => {
+    try {
+      setMsgBk('Descargando...')
+      await descargarDirecto()
+      setMsgBk('✅ Backup descargado correctamente')
+    } catch (err) {
+      setMsgBk('Error: ' + err.message)
+    }
   }
   const eliminarBackup = async (id) => {
     if (!confirm('¿Eliminar este backup?')) return
@@ -201,7 +224,7 @@ export default function Configuracion() {
               cada 6 horas. Este botón es adicional para backups manuales bajo demanda.
             </div>
             <button className="btn btn-primary" onClick={crearBackup} disabled={creandoBk}>
-              {creandoBk ? 'Generando y descargando...' : '⬇ Crear y Descargar Backup'}
+              {creandoBk ? 'Descargando...' : '⬇ Crear y Descargar Backup'}
             </button>
             {msgBk && (
               <div style={{
@@ -230,7 +253,7 @@ export default function Configuracion() {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button className="btn btn-success btn-sm"
-                              onClick={() => descargarBackup(b._id, new Date(b.fecha).toISOString().split('T')[0])}>
+                              onClick={() => descargarBackup()}>
                               Descargar
                             </button>
                             <button className="btn btn-danger btn-sm" onClick={() => eliminarBackup(b._id)}>

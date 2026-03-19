@@ -82,77 +82,70 @@ const consultarDNI = async (dni) => {
 const consultarRUC = async (ruc) => {
   const token = process.env.APIS_PERU_TOKEN || '';
 
-  // === API 1: apis.net.pe con token (si hay token) ===
+  // === API 1: apis.net.pe v2 con token Bearer ===
   if (token) {
     try {
       const res = await fetch(`https://api.apis.net.pe/v2/ruc?numero=${ruc}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        signal: AbortSignal.timeout(5000)
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(6000)
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.razonSocial) {
-          return {
-            nombre: data.razonSocial,
-            direccion: data.direccion || '',
-            estado: data.estado || '',
-            condicion: data.condicion || '',
-            fuente: 'apis.net.pe'
-          };
-        }
+        if (data.razonSocial) return {
+          nombre: data.razonSocial, direccion: data.direccion || '',
+          estado: data.estado || '', fuente: 'apis.net.pe-v2'
+        };
       }
-    } catch (e) {
-      console.log('API 1 RUC (apis.net.pe token) falló:', e.message);
-    }
+    } catch (e) { console.log('RUC API1 falló:', e.message); }
   }
 
-  // === API 2: apiperu.dev - SIN TOKEN ===
+  // === API 2: apis.net.pe v1 con token en query ===
+  if (token) {
+    try {
+      const res = await fetch(`https://api.apis.net.pe/v1/ruc?numero=${ruc}&token=${token}`, {
+        signal: AbortSignal.timeout(6000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.razonSocial) return {
+          nombre: data.razonSocial, direccion: data.direccion || '',
+          estado: data.estado || '', fuente: 'apis.net.pe-v1-token'
+        };
+      }
+    } catch (e) { console.log('RUC API2 falló:', e.message); }
+  }
+
+  // === API 3: apiperu.dev sin token ===
   try {
     const res = await fetch(`https://apiperu.dev/api/ruc/${ruc}`, {
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.data && data.data.nombre_o_razon_social) {
-        return {
-          nombre: data.data.nombre_o_razon_social,
-          direccion: data.data.direccion || '',
-          estado: data.data.estado || '',
-          condicion: data.data.condicion || '',
-          fuente: 'apiperu.dev'
-        };
-      }
+      const nombre = data?.data?.nombre_o_razon_social || data?.razonSocial || data?.nombre;
+      if (nombre) return {
+        nombre, direccion: data?.data?.direccion || '',
+        estado: data?.data?.estado || '', fuente: 'apiperu.dev'
+      };
     }
-  } catch (e) {
-    console.log('API 2 RUC (apiperu.dev) falló:', e.message);
-  }
+  } catch (e) { console.log('RUC API3 falló:', e.message); }
 
-  // === API 3: apis.net.pe v1 sin token ===
+  // === API 4: apis.net.pe v1 sin token (referer) ===
   try {
     const res = await fetch(`https://api.apis.net.pe/v1/ruc?numero=${ruc}`, {
       headers: { 'Referer': 'https://apis.net.pe' },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.razonSocial) {
-        return {
-          nombre: data.razonSocial,
-          direccion: data.direccion || '',
-          estado: data.estado || '',
-          fuente: 'apis.net.pe-v1'
-        };
-      }
+      if (data.razonSocial) return {
+        nombre: data.razonSocial, direccion: data.direccion || '',
+        estado: data.estado || '', fuente: 'apis.net.pe-v1'
+      };
     }
-  } catch (e) {
-    console.log('API 3 RUC (apis.net.pe v1) falló:', e.message);
-  }
+  } catch (e) { console.log('RUC API4 falló:', e.message); }
 
-  throw new Error('No se pudo consultar el RUC en este momento. Ingrese los datos manualmente.');
+  throw new Error('No se pudo consultar el RUC. Ingrese los datos manualmente.');
 };
 
 // ============================================================
