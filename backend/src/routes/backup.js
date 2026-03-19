@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/auth');
+const { auth: authMiddleware } = require('../middleware/auth');
 
 // Importa todos los modelos para el backup completo
 const Usuario = require('../models/Usuario');
