@@ -29,22 +29,10 @@ export default function Configuracion() {
   }, [tab])
 
   const cargarBackups = () => {
-    api.get('/backup').then(r => setBackups(r.data)).catch(() => { })
+    api.get('/backup').then(r => setBackups(r.data)).catch(() => {})
   }
 
-  const guardar = async (e) => {
-    e.preventDefault()
-    setGuardando(true)
-    try {
-      await guardarConfig(form)
-      localStorage.setItem('restaurantNombre', form.nombre || 'PollerOS')
-      setOk(true)
-      setTimeout(() => setOk(false), 3000)
-    } catch { alert('Error al guardar') }
-    finally { setGuardando(false) }
-  }
-
-  // Descarga real usando fetch + blob (evita bloqueo del navegador)
+  // Descarga real con fetch+blob (evita bloqueo del navegador)
   const descargarDirecto = async () => {
     const token = localStorage.getItem('token')
     const baseUrl = import.meta.env.VITE_API_URL || ''
@@ -65,13 +53,26 @@ export default function Configuracion() {
     URL.revokeObjectURL(url)
   }
 
+  const guardar = async (e) => {
+    e.preventDefault()
+    setGuardando(true)
+    try {
+      await guardarConfig(form)
+      localStorage.setItem('restaurantNombre', form.nombre || 'PollerOS')
+      setOk(true)
+      setTimeout(() => setOk(false), 3000)
+    } catch { alert('Error al guardar') }
+    finally { setGuardando(false) }
+  }
+
   const crearBackup = async () => {
     setCreandoBk(true); setMsgBk('')
     try {
       const { data } = await api.post('/backup/crear', { tipo: 'manual' })
-      setMsgBk('Descargando backup...')
+      setMsgBk('Descargando...')
       await descargarDirecto()
       setMsgBk(`✅ Backup descargado: ${data.tamaño} registros`)
+      cargarBackups()
     } catch (err) {
       setMsgBk('Error: ' + (err.response?.data?.error || err.message))
     } finally { setCreandoBk(false) }
@@ -81,7 +82,7 @@ export default function Configuracion() {
     try {
       setMsgBk('Descargando...')
       await descargarDirecto()
-      setMsgBk('✅ Backup descargado correctamente')
+      setMsgBk('✅ Descargado correctamente')
     } catch (err) {
       setMsgBk('Error: ' + err.message)
     }
@@ -224,7 +225,7 @@ export default function Configuracion() {
               cada 6 horas. Este botón es adicional para backups manuales bajo demanda.
             </div>
             <button className="btn btn-primary" onClick={crearBackup} disabled={creandoBk}>
-              {creandoBk ? 'Descargando...' : '⬇ Crear y Descargar Backup'}
+              {creandoBk ? 'Generando...' : '⬇ Crear y Descargar Backup'}
             </button>
             {msgBk && (
               <div style={{
@@ -238,8 +239,11 @@ export default function Configuracion() {
 
           <div className="card" style={{ maxWidth: 600 }}>
             <div className="card-title">Historial de backups</div>
+            <button className="btn btn-ghost btn-sm" style={{marginBottom:12}} onClick={descargarBackup}>
+              ⬇ Descargar backup ahora
+            </button>
             {!backups.length ? (
-              <div style={{ color: 'var(--gray-400)', textAlign: 'center', padding: 20 }}>Sin backups aún</div>
+              <div style={{ color: 'var(--gray-400)', textAlign: 'center', padding: 20 }}>Sin backups aún — crea uno con el botón de arriba</div>
             ) : (
               <div className="table-wrap">
                 <table>

@@ -5,23 +5,22 @@ const Egreso = require('../models/Egreso');
 const { auth, soloAdmin } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 
-// Obtener fecha de hoy en Peru (UTC-5)
+// Fecha hoy en Peru UTC-5
 const hoyPeru = () => {
   const ahora = new Date();
-  ahora.setHours(ahora.getHours() - 5); // ajuste UTC-5 Peru
+  ahora.setHours(ahora.getHours() - 5);
   return ahora.toISOString().split('T')[0];
 };
 
-// GET caja de hoy
+// GET /api/caja/hoy
 router.get('/hoy', auth, async (_req, res) => {
   try {
-    const fecha = hoyPeru();
-    const caja  = await Caja.findOne({ fecha });
+    const caja = await Caja.findOne({ fecha: hoyPeru() });
     res.json(caja || null);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET historial
+// GET /api/caja — historial últimos 30 días
 router.get('/', auth, soloAdmin, async (_req, res) => {
   try {
     const cajas = await Caja.find().sort({ fecha: -1 }).limit(30);
@@ -29,17 +28,13 @@ router.get('/', auth, soloAdmin, async (_req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST abrir caja
+// POST /api/caja/abrir
 router.post('/abrir', auth, async (req, res) => {
   try {
     const fecha = hoyPeru();
-
-    // Si ya hay una abierta hoy, devolverla sin error
     const existeAbierta = await Caja.findOne({ fecha, estado: 'abierta' });
     if (existeAbierta) return res.json(existeAbierta);
 
-    // Si la de hoy está cerrada, permitir abrir una nueva
-    // (en producción real se puede validar, por ahora permitimos)
     const caja = await Caja.create({
       fecha,
       montoApertura: Number(req.body.montoApertura) || 0,
@@ -52,25 +47,43 @@ router.post('/abrir', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST cerrar caja
+// POST /api/caja/cerrar
 router.post('/cerrar', auth, async (req, res) => {
   try {
     const fecha = hoyPeru();
     const caja  = await Caja.findOne({ fecha, estado: 'abierta' });
     if (!caja) return res.status(404).json({ error: 'No hay caja abierta hoy' });
 
-    // Calcular totales del día
-    const inicio = new Date(fecha + 'T05:00:00.000Z'); // medianoche Peru
+    const inicio = new Date(fecha + 'T05:00:00.000Z');
     const fin    = new Date(inicio); fin.setDate(fin.getDate() + 1);
 
     const pedidos = await Pedido.find({ pagado: true, creadoEn: { $gte: inicio, $lt: fin } });
     const egresos = await Egreso.find({ fecha });
 
-    caja.totalVentas   = pedidos.reduce((s, p) => s + p.total, 0);
-    caja.totalEfectivo = pedidos.filter(p => p.metodoPago === 'efectivo').reduce((s, p) => s + p.total, 0);
-    caja.totalYape     = pedidos.filter(p => p.metodoPago === 'yape').reduce((s, p) => s + p.total, 0);
-    caja.totalPlin     = pedidos.filter(p => p.metodoPago === 'plin').reduce((s, p) => s + p.total, 0);
-    caja.totalTarjeta  = pedidos.filter(p => p.metodoPago === 'tarjeta').reduce((s, p) => s + p.total, 0);
+    // Totales por método de pago
+    caja.totalVentas       = pedidos.reduce((s, p) => s + p.total, 0);
+    caja.totalEfectivo     = pedidos.filter(p => p.metodoPago === 'efectivo').reduce((s, p) => s + p.total, 0);
+    caja.totalYape         = pedidos.filter(p => p.metodoPago === 'yape').reduce((s, p) => s + p.total, 0);
+    caja.totalPlin         = pedidos.filter(p => p.metodoPago === 'plin').reduce((s, p) => s + p.total, 0);
+    caja.totalTarjeta      = pedidos.filter(p => p.metodoPago === 'tarjeta').reduce((s, p) => s + p.total, 0);
+    caja.totalTransferencia = pedidos.filter(p => p.metodoPago === 'transferencia').reduce((s, p) => s + p.total, 0);
+
+    // Totales por tipo de comprobante
+    const tickets  = pedidos.filter(p => p.tipoComprobante === 'ticket');
+    const boletas  = pedidos.filter(p => p.tipoComprobante === 'boleta');
+    const facturas = pedidos.filter(p => p.tipoComprobante === 'factura');
+    caja.totalTickets  = tickets.length;
+    caja.totalBoletas  = boletas.length;
+    caja.totalFacturas = facturas.length;
+    caja.montoTickets  = tickets.reduce((s, p) => s + p.total, 0);
+    caja.montoBoletas  = boletas.reduce((s, p) => s + p.total, 0);
+    caja.montoFacturas = facturas.reduce((s, p) => s + p.total, 0);
+
+    // IGV desglosado (18% incluido en precio)
+    caja.subTotal  = Math.round((caja.totalVentas / 1.18) * 100) / 100;
+    caja.totalIGV  = Math.round((caja.totalVentas - caja.subTotal) * 100) / 100;
+
+    // Egresos y saldo
     caja.totalEgresos  = egresos.reduce((s, e) => s + e.monto, 0);
     caja.montoCierre   = Number(req.body.montoCierre) || 0;
     caja.saldoFinal    = caja.montoApertura + caja.totalEfectivo - caja.totalEgresos;
