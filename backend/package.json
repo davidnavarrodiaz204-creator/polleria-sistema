@@ -1,7 +1,7 @@
 {
   "name": "polleria-backend",
   "version": "1.0.0",
-  "description": "Backend API para PollerOS",
+  "description": "API REST para PollerOS - Sistema de gestión para pollerías",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -16,9 +16,12 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "express-validator": "^7.0.1",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "xlsx": "^0.18.5",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
-  }
+  },
+  "author": "David Navarro Diaz"
 }

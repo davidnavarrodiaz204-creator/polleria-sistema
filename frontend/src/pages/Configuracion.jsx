@@ -33,22 +33,23 @@ export default function Configuracion() {
   }
 
   // Descarga real con fetch+blob (evita bloqueo del navegador)
-  const descargarDirecto = async () => {
+  const descargarDirecto = async (formato = 'json') => {
     const token = localStorage.getItem('token')
     const baseUrl = import.meta.env.VITE_API_URL || ''
-    const response = await fetch(`${baseUrl}/api/backup/descargar`, {
+    const response = await fetch(`${baseUrl}/api/backup/descargar?formato=${formato}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (!response.ok) {
-      const err = await response.json()
+      const err = await response.json().catch(() => ({}))
       throw new Error(err.error || 'Error al descargar')
     }
     const blob = await response.blob()
     const fecha = new Date().toISOString().split('T')[0]
+    const ext = formato === 'excel' ? 'xlsx' : 'json'
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `polleria-backup-${fecha}.json`
+    a.download = `polleria-backup-${fecha}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -69,20 +70,20 @@ export default function Configuracion() {
     setCreandoBk(true); setMsgBk('')
     try {
       const { data } = await api.post('/backup/crear', { tipo: 'manual' })
-      setMsgBk('Descargando...')
-      await descargarDirecto()
-      setMsgBk(`✅ Backup descargado: ${data.tamaño} registros`)
+      setMsgBk('Descargando JSON...')
+      await descargarDirecto('json')
+      setMsgBk(`✅ Backup creado y descargado: ${data.tamaño} registros`)
       cargarBackups()
     } catch (err) {
       setMsgBk('Error: ' + (err.response?.data?.error || err.message))
     } finally { setCreandoBk(false) }
   }
 
-  const descargarBackup = async () => {
+  const descargarBackup = async (formato = 'json') => {
     try {
-      setMsgBk('Descargando...')
-      await descargarDirecto()
-      setMsgBk('✅ Descargado correctamente')
+      setMsgBk(`Descargando ${formato === 'excel' ? 'Excel' : 'JSON'}...`)
+      await descargarDirecto(formato)
+      setMsgBk(`✅ Backup ${formato === 'excel' ? 'Excel' : 'JSON'} descargado`)
     } catch (err) {
       setMsgBk('Error: ' + err.message)
     }
@@ -239,9 +240,14 @@ export default function Configuracion() {
 
           <div className="card" style={{ maxWidth: 600 }}>
             <div className="card-title">Historial de backups</div>
-            <button className="btn btn-ghost btn-sm" style={{marginBottom:12}} onClick={descargarBackup}>
-              ⬇ Descargar backup ahora
-            </button>
+            <div style={{display:'flex', gap:8, marginBottom:12, flexWrap:'wrap'}}>
+              <button className="btn btn-primary btn-sm" onClick={() => descargarBackup('json')}>
+                ⬇ Descargar JSON
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => descargarBackup('excel')}>
+                📊 Descargar Excel
+              </button>
+            </div>
             {!backups.length ? (
               <div style={{ color: 'var(--gray-400)', textAlign: 'center', padding: 20 }}>Sin backups aún — crea uno con el botón de arriba</div>
             ) : (
@@ -257,7 +263,7 @@ export default function Configuracion() {
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button className="btn btn-success btn-sm"
-                              onClick={() => descargarBackup()}>
+                              onClick={() => descargarBackup('json')}>
                               Descargar
                             </button>
                             <button className="btn btn-danger btn-sm" onClick={() => eliminarBackup(b._id)}>
