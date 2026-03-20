@@ -23,6 +23,7 @@ import Historial from './pages/Historial'
 import Inventario from './pages/Inventario'
 import Reservas from './pages/Reservas'
 import Comprobantes from './pages/Comprobantes'
+import NotaCredito from './pages/NotaCredito'
 import Notificaciones from './components/ui/Notificaciones'
 
 function RutaProtegida({ children, roles }) {
@@ -46,7 +47,8 @@ function AppRoutes() {
         <Route path="delivery"     element={<Delivery />} />
         <Route path="caja"         element={<RutaProtegida roles={['admin']}><Caja /></RutaProtegida>} />
         <Route path="historial"    element={<RutaProtegida roles={['admin']}><Historial /></RutaProtegida>} />
-        <Route path="comprobantes" element={<RutaProtegida roles={['admin']}><Comprobantes /></RutaProtegida>} />
+        <Route path="comprobantes"  element={<RutaProtegida roles={['admin']}><Comprobantes /></RutaProtegida>} />
+        <Route path="nota-credito"  element={<RutaProtegida roles={['admin']}><NotaCredito /></RutaProtegida>} />
         <Route path="inventario"   element={<RutaProtegida roles={['admin']}><Inventario /></RutaProtegida>} />
         <Route path="reservas"     element={<RutaProtegida roles={['admin','mozo']}><Reservas /></RutaProtegida>} />
         <Route path="clientes"     element={<RutaProtegida roles={['admin']}><Clientes /></RutaProtegida>} />

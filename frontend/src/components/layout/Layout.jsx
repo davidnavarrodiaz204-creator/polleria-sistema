@@ -21,6 +21,7 @@ const NAV = [
   { to: '/caja',         icon: '💵', label: 'Caja',            roles: ['admin'] },
   { to: '/historial',    icon: '🧾', label: 'Historial',       roles: ['admin'] },
   { to: '/comprobantes', icon: '📄', label: 'Comprobantes',    roles: ['admin'] },
+  { to: '/nota-credito', icon: '↩️', label: 'Nota de Crédito',  roles: ['admin'] },
   // Gestión
   { to: '/inventario',   icon: '📦', label: 'Inventario',      roles: ['admin'] },
   { to: '/clientes',     icon: '👤', label: 'Clientes',         roles: ['admin'] },
