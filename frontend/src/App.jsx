@@ -25,6 +25,7 @@ import Reservas from './pages/Reservas'
 import Comprobantes from './pages/Comprobantes'
 import NotaCredito from './pages/NotaCredito'
 import Notificaciones from './components/ui/Notificaciones'
+import InstalarPWA from './components/ui/InstalarPWA'
 
 function RutaProtegida({ children, roles }) {
   const { usuario, cargando } = useAuth()
@@ -69,6 +70,7 @@ export default function App() {
       <AuthProvider>
         <AppRoutes />
         <Notificaciones />
+        <InstalarPWA />
       </AuthProvider>
     </BrowserRouter>
   )
