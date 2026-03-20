@@ -82,16 +82,6 @@ export default function WhatsApp() {
         ))}
       </div>
 
-      {/* Aviso si WhatsApp no está activado */}
-      {!whatsappActivo && (
-        <div style={{ background:'#FFF8E1', border:'1px solid #FFE082', borderRadius:'var(--radius-sm)', padding:'14px 16px', marginBottom:20 }}>
-          <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>⚠️ WhatsApp no activado</div>
-          <div style={{ fontSize:13, color:'var(--gray-700)', lineHeight:1.7 }}>
-            Para activar el envío de mensajes, configura la variable <code style={{background:'#eee',padding:'1px 6px',borderRadius:4}}>CALLMEBOT_APIKEY</code> en tu servidor (Render → backend → Environment).
-          </div>
-        </div>
-      )}
-
       {/* TABS */}
       <div style={{ display:'flex', gap:4, background:'var(--gray-100)', borderRadius:'var(--radius)', padding:4, marginBottom:20, width:'fit-content' }}>
         {[{k:'promo',l:'Promo masiva'},{k:'cump',l:'Cumpleaños'}].map(t => (

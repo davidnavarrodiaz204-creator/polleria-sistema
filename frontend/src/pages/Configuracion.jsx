@@ -299,22 +299,6 @@ export default function Configuracion() {
             )}
           </div>
 
-          {/* Instrucciones de configuración */}
-          <div className="card">
-            <div className="card-title">Cómo activar</div>
-            <div style={{fontSize:13,lineHeight:1.9,color:'var(--gray-700)'}}>
-              <div><strong>1.</strong> Regístrate en <a href="https://nubefact.com" target="_blank" rel="noreferrer" style={{color:'var(--info)'}}>nubefact.com</a></div>
-              <div><strong>2.</strong> Ve a <strong>Configuración → API</strong> y copia tu token</div>
-              <div><strong>3.</strong> En Railway → backend → Variables agrega:</div>
-              <div style={{background:'var(--gray-100)',borderRadius:6,padding:'8px 12px',fontFamily:'monospace',fontSize:12,margin:'6px 0'}}>
-                NUBEFACT_TOKEN = tu_token_aqui<br/>
-                NUBEFACT_RUC = ruc_del_negocio
-              </div>
-              <div><strong>4.</strong> Redespliega el backend</div>
-              <div><strong>5.</strong> Cambia el modo a PRODUCCIÓN cuando estés listo</div>
-            </div>
-          </div>
-
           {/* Series de comprobantes */}
           <div className="card">
             <div className="card-title">Series de Comprobantes</div>
