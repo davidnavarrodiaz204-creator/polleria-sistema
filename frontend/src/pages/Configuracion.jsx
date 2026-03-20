@@ -21,6 +21,13 @@ export default function Configuracion() {
 
   // Backups
   const [backups, setBackups] = useState([])
+  const [estadoNubefact, setEstadoNubefact] = useState(null)
+
+  useEffect(() => {
+    if (tab === 'sunat') {
+      api.get('/facturacion/estado').then(r => setEstadoNubefact(r.data)).catch(() => {})
+    }
+  }, [tab])
   const [creandoBk, setCreandoBk] = useState(false)
   const [msgBk, setMsgBk] = useState('')
 
@@ -98,6 +105,7 @@ export default function Configuracion() {
     { k: 'negocio',    l: 'Negocio' },
     { k: 'apariencia', l: 'Apariencia' },
     { k: 'modulos',    l: 'Módulos' },
+    { k: 'sunat',      l: '🧾 SUNAT' },
     { k: 'backup',     l: 'Backups' },
   ]
 
@@ -211,6 +219,108 @@ export default function Configuracion() {
       </form>
 
       {/* BACKUPS */}
+      {/* ── TAB SUNAT / FACTURACIÓN ELECTRÓNICA ── */}
+      {tab === 'sunat' && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:800}}>
+
+          {/* Estado actual */}
+          <div className="card">
+            <div className="card-title">Estado de Facturación Electrónica</div>
+            {estadoNubefact ? (
+              <>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+                  <div style={{width:12,height:12,borderRadius:'50%',background:estadoNubefact.configurado?'var(--success)':'var(--gray-300)'}}/>
+                  <span style={{fontWeight:700,color:estadoNubefact.configurado?'var(--success)':'var(--gray-500)'}}>
+                    {estadoNubefact.configurado ? 'Nubefact Activo' : 'No configurado'}
+                  </span>
+                </div>
+                {estadoNubefact.configurado && (
+                  <div style={{background:estadoNubefact.modoActual==='produccion'?'#E8F5E9':'#FFF8E1',borderRadius:'var(--radius-sm)',padding:'10px 14px',fontSize:13,marginBottom:12}}>
+                    <strong>Modo:</strong> {estadoNubefact.modoActual === 'produccion' ? '✅ PRODUCCIÓN — Comprobantes reales SUNAT' : '⚠️ DEMO — Sin valor legal (pruebas)'}
+                  </div>
+                )}
+                <div style={{fontSize:13,color:'var(--gray-600)',lineHeight:1.8}}>
+                  {estadoNubefact.mensaje}
+                </div>
+              </>
+            ) : (
+              <div style={{color:'var(--gray-400)',fontSize:13}}>Cargando estado...</div>
+            )}
+          </div>
+
+          {/* Instrucciones de configuración */}
+          <div className="card">
+            <div className="card-title">Cómo activar</div>
+            <div style={{fontSize:13,lineHeight:1.9,color:'var(--gray-700)'}}>
+              <div><strong>1.</strong> Regístrate en <a href="https://nubefact.com" target="_blank" rel="noreferrer" style={{color:'var(--info)'}}>nubefact.com</a></div>
+              <div><strong>2.</strong> Ve a <strong>Configuración → API</strong> y copia tu token</div>
+              <div><strong>3.</strong> En Railway → backend → Variables agrega:</div>
+              <div style={{background:'var(--gray-100)',borderRadius:6,padding:'8px 12px',fontFamily:'monospace',fontSize:12,margin:'6px 0'}}>
+                NUBEFACT_TOKEN = tu_token_aqui<br/>
+                NUBEFACT_RUC = ruc_del_negocio
+              </div>
+              <div><strong>4.</strong> Redespliega el backend</div>
+              <div><strong>5.</strong> Cambia el modo a PRODUCCIÓN cuando estés listo</div>
+            </div>
+          </div>
+
+          {/* Series de comprobantes */}
+          <div className="card">
+            <div className="card-title">Series de Comprobantes</div>
+            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
+              Configura con tu contador. Por defecto: B001 boletas, F001 facturas.
+            </div>
+            {[
+              {label:'Serie Tickets', key:'serieTicket', default:'T001', desc:'Sin valor SUNAT'},
+              {label:'Serie Boletas', key:'serieBoleta', default:'B001', desc:'Personas naturales'},
+              {label:'Serie Facturas', key:'serieFactura', default:'F001', desc:'Empresas con RUC'},
+              {label:'Serie Notas Crédito', key:'serieNC', default:'BC01', desc:'Anulaciones'},
+            ].map(s => (
+              <div key={s.key} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                <input className="form-input" style={{width:80,textTransform:'uppercase'}}
+                  value={form[s.key]||s.default}
+                  onChange={e=>setForm(f=>({...f,[s.key]:e.target.value.toUpperCase()}))}
+                  maxLength={4}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{s.label}</div>
+                  <div style={{fontSize:11,color:'var(--gray-400)'}}>{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Datos SUNAT del negocio */}
+          <div className="card">
+            <div className="card-title">Datos SUNAT del Negocio</div>
+            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
+              Estos datos aparecen en boletas y facturas.
+            </div>
+            <div className="form-group">
+              <label className="form-label">RUC del negocio</label>
+              <input className="form-input" value={form.ruc||''} maxLength={11}
+                onChange={e=>setForm(f=>({...f,ruc:e.target.value}))}
+                placeholder="20123456789"/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Razón Social (SUNAT)</label>
+              <input className="form-input" value={form.razonSocial||''}
+                onChange={e=>setForm(f=>({...f,razonSocial:e.target.value}))}
+                placeholder="EMPRESA S.A.C."/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Modo Nubefact</label>
+              <select className="form-select"
+                value={form.nubefact?.modo||'demo'}
+                onChange={e=>setForm(f=>({...f,nubefact:{...f.nubefact,modo:e.target.value}}))}>
+                <option value="demo">⚠️ Demo (pruebas — sin valor legal)</option>
+                <option value="produccion">✅ Producción (comprobantes reales SUNAT)</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+      )}
+
       {tab === 'backup' && (
         <div>
           <div className="card" style={{ maxWidth: 600, marginBottom: 16 }}>

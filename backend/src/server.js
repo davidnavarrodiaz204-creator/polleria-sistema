@@ -42,8 +42,9 @@ app.use('/api/egresos',   require('./routes/egresos'));
 app.use('/api/reportes',  require('./routes/reportes'));
 
 // ── Rutas nuevas (solo si el archivo existe) ───────────────
-try { app.use('/api/inventario', require('./routes/inventario')); } catch(e) {}
-try { app.use('/api/reservas',   require('./routes/reservas'));   } catch(e) {}
+try { app.use('/api/inventario',   require('./routes/inventario'));   } catch(e) {}
+try { app.use('/api/reservas',     require('./routes/reservas'));     } catch(e) {}
+try { app.use('/api/facturacion',  require('./routes/facturacion'));  } catch(e) {}
 
 // Health check
 app.get('/api/health', (_req, res) =>
