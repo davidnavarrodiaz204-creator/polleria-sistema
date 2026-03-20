@@ -6,10 +6,10 @@ import { useAuth } from '../context/AuthContext'
 
 const CATS_EGRESO  = ['Ingredientes','Limpieza','Gas','Luz/Agua','Personal','Transporte','Mantenimiento','Otros']
 const COMPROBANTES = [
-  { value:'ticket',       label:'Ticket' },
-  { value:'boleta',       label:'Boleta' },
-  { value:'factura',      label:'Factura' },
-  { value:'nota_credito', label:'Nota Crédito' },
+  { value:'ticket',  label:'Ticket'  },
+  { value:'boleta',  label:'Boleta'  },
+  { value:'factura', label:'Factura' },
+  // Nota de Crédito se emite desde la sección Nota de Crédito, no desde el cobro
 ]
 const METODOS = [
   { value:'efectivo',     label:'Efectivo' },
@@ -73,7 +73,7 @@ export default function Caja() {
       setCobro(prev => ({
         ...prev,
         clienteId:    data._id    || null,
-        nombre:       data.nombre || '',
+        nombre:       data.nombre || 'Clientes Varios',
         razonSocial:  data.razonSocial || '',
         direccion:    data.direccion   || '',
         celular:      data.celular     || '',

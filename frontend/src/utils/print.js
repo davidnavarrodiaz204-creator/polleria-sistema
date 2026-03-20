@@ -130,7 +130,13 @@ export const imprimirBoleta = (pedido, config = {}) => {
   .totales-box { border: 1px solid #000; padding: 5px 8px; margin: 4px 0; }
   .total-grande { font-size: 14px; font-weight: bold; display: flex; justify-content: space-between; padding: 2px 0; }
   .qr-section { text-align: center; margin: 8px 0 4px; }
-  .qr-section img { width: 90px; height: 90px; display: block; margin: 0 auto; }
+  .qr-section img {
+    width: 90px; height: 90px;
+    display: block; margin: 0 auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
   .small { font-size: 9px; }
   .footer { text-align: center; margin-top: 4px; }
   @media print {
@@ -163,6 +169,10 @@ export const imprimirBoleta = (pedido, config = {}) => {
   ${pedido.mozo       ? `<div class="row"><span>ATENDIÓ:</span><span>${pedido.mozo}</span></div>` : ''}
 
   <!-- DATOS DEL CLIENTE -->
+  ${tipo === 'ticket' && !pedido.clienteNombre && !pedido.clienteDoc ? `
+    <div class="line-dashed"></div>
+    <div class="row"><span>CLIENTE:</span><span>CLIENTES VARIOS</span></div>
+  ` : ''}
   ${(pedido.clienteNombre || pedido.ruc) ? `
     <div class="line-dashed"></div>
     ${tipo === 'factura' ? `
@@ -225,10 +235,9 @@ export const imprimirBoleta = (pedido, config = {}) => {
   ${conIGV ? `
     <div class="line-dashed"></div>
     <div class="qr-section">
-      <img src="${qrUrl(qrData)}" alt="QR" onerror="this.style.display='none';this.nextSibling.style.display='block'"/>
-      <div style="display:none;border:1px solid #999;width:90px;height:90px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:8px;text-align:center">
-        Código QR<br>${serie}-${numero}
-      </div>
+      <img src="${qrUrl(qrData)}" alt="QR"
+        style="width:90px;height:90px;display:block;margin:0 auto;"
+        onerror="this.outerHTML='<div style=\'border:1px solid #999;width:90px;height:90px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:8px;text-align:center\'><span>QR<br>${serie}-${numero}</span></div>'"/>
     </div>
     <div class="center small">Representación impresa de ${TITULOS[tipo]}</div>
     ${rucLocal ? `<div class="center small">Puede consultar en: www.sunat.gob.pe</div>` : ''}
