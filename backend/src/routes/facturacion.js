@@ -245,6 +245,103 @@ router.get('/estado', auth, async (req, res) => {
 })
 
 // ─────────────────────────────────────────────────────────────
+// POST /api/facturacion/nota-credito
+// Emite una Nota de Crédito electrónica referenciando boleta/factura original
+// Body: { pedidoOriginalId, pedidoNCId, motivo }
+// ─────────────────────────────────────────────────────────────
+router.post('/nota-credito', auth, async (req, res) => {
+  try {
+    const { pedidoOriginalId, pedidoNCId, motivo } = req.body
+    if (!pedidoOriginalId || !pedidoNCId) {
+      return res.status(400).json({ error: 'pedidoOriginalId y pedidoNCId son requeridos' })
+    }
+
+    const token = process.env.NUBEFACT_TOKEN
+    if (!token) {
+      return res.status(503).json({
+        error: 'Facturación electrónica no configurada',
+        detalle: 'Agrega NUBEFACT_TOKEN en Railway'
+      })
+    }
+
+    const [pedidoOriginal, pedidoNC] = await Promise.all([
+      Pedido.findById(pedidoOriginalId),
+      Pedido.findById(pedidoNCId),
+    ])
+
+    if (!pedidoOriginal) return res.status(404).json({ error: 'Pedido original no encontrado' })
+    if (!pedidoNC)       return res.status(404).json({ error: 'Pedido NC no encontrado' })
+
+    // Verificar que el original era boleta o factura
+    if (!['boleta','factura'].includes(pedidoOriginal.tipoComprobante)) {
+      return res.status(400).json({ error: 'Solo se pueden hacer NC de boletas y facturas' })
+    }
+
+    // Verificar que el original fue enviado a SUNAT
+    if (!pedidoOriginal.serieComprobante || !pedidoOriginal.numeroComprobante) {
+      return res.status(400).json({
+        error: 'El comprobante original no fue emitido electrónicamente',
+        detalle: 'Primero emite el comprobante original a SUNAT'
+      })
+    }
+
+    const config = await Config.findOne() || {}
+    const motivoCodigo = MOTIVO_NC[motivo] || '13'
+
+    const comprobante = construirComprobante(pedidoNC, config, 'nota_credito')
+
+    // Datos adicionales de la NC referenciando el original
+    comprobante.documento_que_se_modifica_tipo   = pedidoOriginal.tipoComprobante === 'factura' ? '01' : '03'
+    comprobante.documento_que_se_modifica_serie  = pedidoOriginal.serieComprobante
+    comprobante.documento_que_se_modifica_numero = String(pedidoOriginal.numeroComprobante)
+    comprobante.tipo_de_nota_de_credito          = motivoCodigo
+    comprobante.observaciones = `NC por: ${motivo} | Ref: ${pedidoOriginal.serieComprobante}-${String(pedidoOriginal.numeroComprobante).padStart(8,'0')}`
+
+    const apiUrl = `https://api.nubefact.com/api/v1/${process.env.NUBEFACT_RUC || config.ruc}`
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Token token="${token}"`,
+      },
+      body: JSON.stringify(comprobante),
+      signal: AbortSignal.timeout(30000),
+    })
+
+    const resultado = await response.json()
+
+    if (!response.ok || resultado.errors) {
+      return res.status(400).json({ error: resultado.errors?.[0] || 'Error en Nubefact', detalle: resultado })
+    }
+
+    // Guardar datos en el pedido NC
+    pedidoNC.serieComprobante  = resultado.serie       || comprobante.serie
+    pedidoNC.numeroComprobante = resultado.numero      || 1
+    pedidoNC.codigoHashSunat   = resultado.enlace_del_cdr || ''
+    pedidoNC.estadoSunat       = resultado.aceptada_por_sunat ? 'aceptado' : 'pendiente'
+    pedidoNC.linkPdfSunat      = resultado.enlace_del_pdf || ''
+    pedidoNC.linkXmlSunat      = resultado.enlace_del_xml || ''
+    pedidoNC.fechaEmisionElectronica = new Date()
+    await pedidoNC.save()
+
+    res.json({
+      success: true,
+      serie:   pedidoNC.serieComprobante,
+      numero:  pedidoNC.numeroComprobante,
+      hash:    pedidoNC.codigoHashSunat,
+      pdfUrl:  pedidoNC.linkPdfSunat,
+      xmlUrl:  pedidoNC.linkXmlSunat,
+      estado:  pedidoNC.estadoSunat,
+    })
+
+  } catch (err) {
+    console.error('[NUBEFACT NC] Error:', err.message)
+    res.status(500).json({ error: 'Error al emitir NC: ' + err.message })
+  }
+})
+
+// ─────────────────────────────────────────────────────────────
 // GET /api/facturacion/pdf/:pedidoId
 // Redirige al PDF del comprobante en Nubefact
 // ─────────────────────────────────────────────────────────────
