@@ -11,16 +11,16 @@ import './Layout.css'
 // Navegación organizada por grupos
 const NAV = [
   // Operaciones del día
-  { to: '/',             icon: '📊', label: 'Dashboard',      roles: ['admin','mozo','cocina','delivery'] },
+  { to: '/',             icon: '📊', label: 'Dashboard',      roles: ['admin','cajero','mozo','cocina','delivery'] },
   { to: '/mesas',        icon: '🪑', label: 'Mesas',           roles: ['admin','mozo'] },
   { to: '/pedidos',      icon: '📋', label: 'Nuevo Pedido',    roles: ['admin','mozo'] },
   { to: '/reservas',     icon: '📅', label: 'Reservas',        roles: ['admin','mozo'] },
   { to: '/cocina',       icon: '👨‍🍳', label: 'Cocina',           roles: ['admin','cocina'] },
   { to: '/delivery',     icon: '🛵', label: 'Delivery',        roles: ['admin','mozo','delivery'] },
   // Caja y ventas
-  { to: '/caja',         icon: '💵', label: 'Caja',            roles: ['admin'] },
-  { to: '/historial',    icon: '🧾', label: 'Historial',       roles: ['admin'] },
-  { to: '/comprobantes', icon: '📄', label: 'Comprobantes',    roles: ['admin'] },
+  { to: '/caja',         icon: '💵', label: 'Caja',            roles: ['admin','cajero'] },
+  { to: '/historial',    icon: '🧾', label: 'Historial',       roles: ['admin','cajero'] },
+  { to: '/comprobantes', icon: '📄', label: 'Comprobantes',    roles: ['admin','cajero'] },
   { to: '/nota-credito', icon: '↩️', label: 'Nota de Crédito',  roles: ['admin'] },
   // Gestión
   { to: '/inventario',   icon: '📦', label: 'Inventario',      roles: ['admin'] },

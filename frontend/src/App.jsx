@@ -45,8 +45,8 @@ function AppRoutes() {
         <Route path="pedidos"      element={<Pedidos />} />
         <Route path="cocina"       element={<RutaProtegida roles={['admin','cocina']}><Cocina /></RutaProtegida>} />
         <Route path="delivery"     element={<Delivery />} />
-        <Route path="caja"         element={<RutaProtegida roles={['admin']}><Caja /></RutaProtegida>} />
-        <Route path="historial"    element={<RutaProtegida roles={['admin']}><Historial /></RutaProtegida>} />
+        <Route path="caja"         element={<RutaProtegida roles={['admin','cajero']}><Caja /></RutaProtegida>} />
+        <Route path="historial"    element={<RutaProtegida roles={['admin','cajero']}><Historial /></RutaProtegida>} />
         <Route path="comprobantes"  element={<RutaProtegida roles={['admin']}><Comprobantes /></RutaProtegida>} />
         <Route path="nota-credito"  element={<RutaProtegida roles={['admin']}><NotaCredito /></RutaProtegida>} />
         <Route path="inventario"   element={<RutaProtegida roles={['admin']}><Inventario /></RutaProtegida>} />

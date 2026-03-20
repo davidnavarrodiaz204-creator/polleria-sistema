@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../utils/api'
 import { imprimirCierreCaja, imprimirBoleta } from '../utils/print'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 
 const CATS_EGRESO  = ['Ingredientes','Limpieza','Gas','Luz/Agua','Personal','Transporte','Mantenimiento','Otros']
 const COMPROBANTES = [
@@ -20,6 +21,8 @@ const METODOS = [
 
 export default function Caja() {
   const { config } = useApp()
+  const { usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'admin'
   const [caja, setCaja]         = useState(null)
   const [egresos, setEgresos]   = useState([])
   const [pedidos, setPedidos]   = useState([])
@@ -44,16 +47,12 @@ export default function Caja() {
   const [consultando, setConsultando] = useState(false)
   const [msgDoc, setMsgDoc]           = useState('')
 
-  const [pedidosPagados, setPedidosPagados] = useState([])
-
   const cargar = useCallback(() => {
     api.get('/caja/hoy').then(r => setCaja(r.data)).catch(() => {})
     api.get('/egresos').then(r => setEgresos(r.data)).catch(() => {})
-    api.get('/pedidos').then(r => {
-      const todos = r.data
-      setPedidos(todos.filter(p => !p.pagado && !['cancelado'].includes(p.estado)))
-      setPedidosPagados(todos.filter(p => p.pagado))
-    }).catch(() => {})
+    api.get('/pedidos').then(r => setPedidos(
+      r.data.filter(p => !p.pagado && !['cancelado'].includes(p.estado))
+    )).catch(() => {})
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
@@ -124,31 +123,16 @@ export default function Caja() {
       // Guardar o actualizar cliente si tiene documento
       let clienteId = cobro.clienteId
       if (cobro.numDoc && cobro.nombre) {
-        const datosCliente = {
-          tipoDoc:     cobro.numDoc.length === 8 ? 'dni' : 'ruc',
-          numDoc:      cobro.numDoc,
-          nombre:      cobro.nombre,
-          razonSocial: cobro.razonSocial,
-          direccion:   cobro.direccion,
-          celular:     cobro.celular,
-          aceptaPromo: cobro.aceptaPromo,
-        }
-        if (cobro.clienteId) {
-          // Cliente ya existe → actualizar datos (celular, dirección, etc.)
-          await api.put('/clientes/' + cobro.clienteId, datosCliente).catch(() => {})
-        } else {
-          // Cliente nuevo → crear
-          try {
-            const { data: cl } = await api.post('/clientes', datosCliente)
-            clienteId = cl._id
-          } catch (e) {
-            // Si ya existe (race condition), buscar su ID sin bloquear el cobro
-            if (e.response?.status === 400) {
-              const { data: lista } = await api.get('/clientes?q=' + cobro.numDoc).catch(() => ({ data: [] }))
-              if (lista?.[0]) clienteId = lista[0]._id
-            }
-          }
-        }
+        const { data: cl } = await api.post('/clientes', {
+          tipoDoc:    cobro.numDoc.length === 8 ? 'dni' : 'ruc',
+          numDoc:     cobro.numDoc,
+          nombre:     cobro.nombre,
+          razonSocial:cobro.razonSocial,
+          direccion:  cobro.direccion,
+          celular:    cobro.celular,
+          aceptaPromo:cobro.aceptaPromo,
+        })
+        clienteId = cl._id
       }
 
       // Marcar pedido como pagado
@@ -210,13 +194,23 @@ export default function Caja() {
           </div>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {!caja && <button className="btn btn-primary" onClick={()=>setModalApertura(true)}>Abrir Caja</button>}
+          {!caja && esAdmin && (
+            <button className="btn btn-primary" onClick={()=>setModalApertura(true)}>Abrir Caja</button>
+          )}
+          {!caja && !esAdmin && (
+            <div style={{fontSize:13,color:'var(--gray-500)',padding:'8px 12px',background:'var(--gray-100)',borderRadius:'var(--radius-sm)'}}>
+              ⏳ Esperando que el administrador abra la caja
+            </div>
+          )}
           {caja?.estado==='abierta' && <>
             <button className="btn btn-ghost" onClick={()=>setModalEgreso(true)}>Registrar Egreso</button>
-            <button className="btn btn-accent" onClick={()=>setModalCierre(true)}>Cerrar Caja</button>
+            {esAdmin && <button className="btn btn-accent" onClick={()=>setModalCierre(true)}>Cerrar Caja</button>}
           </>}
           {caja?.estado==='cerrada' && (
             <button className="btn btn-ghost" onClick={()=>imprimirCierreCaja(caja, egresos)}>Imprimir Cierre</button>
+          )}
+          {caja?.estado==='cerrada' && esAdmin && (
+            <button className="btn btn-primary" onClick={()=>setModalApertura(true)}>Abrir Nuevo Turno</button>
           )}
         </div>
       </div>
@@ -292,14 +286,13 @@ export default function Caja() {
               <div className="card-title">Estado de Caja — Hoy</div>
               {[
                 { label:'Apertura con',    val:caja.montoApertura,  color:'var(--gray-700)' },
-                { label:'Ventas efectivo', val: caja.estado==='cerrada' ? caja.totalEfectivo  : pedidosPagados.filter(p=>p.metodoPago==='efectivo').reduce((s,p)=>s+p.total,0),  color:'var(--success)' },
-                { label:'Ventas Yape',     val: caja.estado==='cerrada' ? caja.totalYape      : pedidosPagados.filter(p=>p.metodoPago==='yape').reduce((s,p)=>s+p.total,0),      color:'var(--info)' },
-                { label:'Ventas Plin',     val: caja.estado==='cerrada' ? caja.totalPlin      : pedidosPagados.filter(p=>p.metodoPago==='plin').reduce((s,p)=>s+p.total,0),      color:'var(--info)' },
-                { label:'Ventas Tarjeta',  val: caja.estado==='cerrada' ? caja.totalTarjeta   : pedidosPagados.filter(p=>p.metodoPago==='tarjeta').reduce((s,p)=>s+p.total,0),   color:'var(--info)' },
-                { label:'Ventas Transf.',  val: caja.estado==='cerrada' ? (caja.totalTransferencia||0) : pedidosPagados.filter(p=>p.metodoPago==='transferencia').reduce((s,p)=>s+p.total,0), color:'var(--info)' },
-                { label:'Total ventas',    val: caja.estado==='cerrada' ? caja.totalVentas    : pedidosPagados.reduce((s,p)=>s+p.total,0), color:'var(--success)', bold:true },
-                { label:'Total egresos',   val: totalEgresos, color:'var(--danger)' },
-                { label:'Saldo en caja',   val: (caja.montoApertura||0) + (caja.estado==='cerrada' ? caja.totalEfectivo : pedidosPagados.filter(p=>p.metodoPago==='efectivo').reduce((s,p)=>s+p.total,0)) - totalEgresos, color:'var(--accent)', bold:true },
+                { label:'Ventas efectivo', val:caja.totalEfectivo,  color:'var(--success)' },
+                { label:'Ventas Yape',     val:caja.totalYape,      color:'var(--info)' },
+                { label:'Ventas Plin',     val:caja.totalPlin,      color:'var(--info)' },
+                { label:'Ventas Tarjeta',  val:caja.totalTarjeta,   color:'var(--info)' },
+                { label:'Total ventas',    val:caja.totalVentas,    color:'var(--success)', bold:true },
+                { label:'Total egresos',   val:caja.totalEgresos||totalEgresos, color:'var(--danger)' },
+                { label:'Saldo en caja',   val:(caja.montoApertura||0)+(caja.totalEfectivo||0)-(caja.totalEgresos||totalEgresos), color:'var(--accent)', bold:true },
               ].map((row,i) => (
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--gray-100)' }}>
                   <span style={{ fontSize:14, fontWeight:row.bold?700:400 }}>{row.label}</span>
