@@ -41,20 +41,24 @@ router.get('/resumen', auth, async (_req, res) => {
       .sort((a, b) => b[1] - a[1]).slice(0, 5)
       .map(([nombre, cantidad]) => ({ nombre, cantidad }));
 
-    // Pedidos activos en cocina (para mostrar en dashboard)
+    // Ranking de mozos — quién vendió más hoy
+    const rankingMozos = {};
+    pedidosHoy.filter(p => p.pagado && p.mozo).forEach(p => {
+      if (!rankingMozos[p.mozo]) rankingMozos[p.mozo] = { nombre: p.mozo, pedidos: 0, monto: 0 };
+      rankingMozos[p.mozo].pedidos += 1;
+      rankingMozos[p.mozo].monto  += p.total || 0;
+    });
+    const topMozos = Object.values(rankingMozos)
+      .sort((a, b) => b.monto - a.monto)
+      .slice(0, 5);
+
+    // Pedidos activos y pendientes de cobro
     const pedidosActivos = pedidosHoy
       .filter(p => !p.pagado && !['cancelado','entregado'].includes(p.estado))
       .slice(0, 10)
-      .map(p => ({
-        tipo:       p.tipo,
-        mesaNumero: p.mesaNumero,
-        estado:     p.estado,
-        total:      p.total,
-      }))
-
-    // Pedidos pendientes de cobro
+      .map(p => ({ tipo: p.tipo, mesaNumero: p.mesaNumero, estado: p.estado, total: p.total }));
     const pedidosPendientesCobro = pedidosHoy
-      .filter(p => !p.pagado && p.estado === 'entregado').length
+      .filter(p => !p.pagado && p.estado === 'entregado').length;
 
     res.json({
       ventasHoy,
@@ -67,6 +71,7 @@ router.get('/resumen', auth, async (_req, res) => {
       totalClientes,
       porMetodo,
       topProductos,
+      topMozos,
       pedidosActivos,
       pedidosPendientesCobro,
     });
@@ -127,11 +132,23 @@ router.get('/ventas', auth, async (req, res) => {
       porCategoria[item.nombre] = (porCategoria[item.nombre] || 0) + item.precio * item.cantidad;
     }));
 
+    // Ranking mozos del período
+    const rankingMozosPeriodo = {};
+    pedidos.filter(p => p.pagado && p.mozo).forEach(p => {
+      if (!rankingMozosPeriodo[p.mozo]) rankingMozosPeriodo[p.mozo] = { nombre: p.mozo, pedidos: 0, monto: 0 };
+      rankingMozosPeriodo[p.mozo].pedidos += 1;
+      rankingMozosPeriodo[p.mozo].monto  += p.total || 0;
+    });
+    const topMozosPeriodo = Object.values(rankingMozosPeriodo)
+      .sort((a, b) => b.monto - a.monto)
+      .slice(0, 10);
+
     res.json({
       totalVentas, totalEgresos, totalPedidos,
       utilidad: totalVentas - totalEgresos,
       porDia: diasOrdenados,
       porCategoria,
+      topMozos: topMozosPeriodo,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

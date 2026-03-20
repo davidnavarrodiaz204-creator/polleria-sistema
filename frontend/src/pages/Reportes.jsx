@@ -303,6 +303,90 @@ export default function Reportes() {
           )}
         </div>
 
+        {/* RANKING MOZOS */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:16,marginBottom:0}}>
+
+          {/* Ranking hoy */}
+          <div className="card">
+            <div className="card-title">👨‍💼 Ranking de mozos — hoy</div>
+            {resumen?.topMozos?.length ? (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {resumen.topMozos.map((m,i) => (
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{
+                      width:30,height:30,borderRadius:'50%',flexShrink:0,
+                      background:i===0?'#FFD700':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--gray-200)',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:14,fontWeight:900,
+                    }}>
+                      {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{m.nombre}</div>
+                      <div style={{height:6,background:'var(--gray-200)',borderRadius:3,marginTop:3,overflow:'hidden'}}>
+                        <div style={{
+                          height:'100%',borderRadius:3,
+                          background:i===0?'#F5C518':i===1?'#94a3b8':'var(--primary)',
+                          width:`${Math.min(100,(m.monto/(resumen.topMozos[0]?.monto||1))*100)}%`,
+                          transition:'width .5s'
+                        }}/>
+                      </div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:800,color:'var(--success)',fontSize:14}}>S/ {m.monto.toFixed(2)}</div>
+                      <div style={{fontSize:11,color:'var(--gray-400)'}}>{m.pedidos} pedidos</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{textAlign:'center',padding:24,color:'var(--gray-400)',fontSize:13}}>
+                Sin ventas registradas hoy
+              </div>
+            )}
+          </div>
+
+          {/* Ranking del período */}
+          <div className="card">
+            <div className="card-title">🏆 Ranking mozos — {periodo === 'semana' ? 'esta semana' : periodo === 'mes' ? 'este mes' : 'este año'}</div>
+            {ventas?.topMozos?.length ? (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {ventas.topMozos.map((m,i) => (
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{
+                      width:30,height:30,borderRadius:'50%',flexShrink:0,
+                      background:i===0?'#FFD700':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--gray-200)',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:14,fontWeight:900,
+                    }}>
+                      {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{m.nombre}</div>
+                      <div style={{height:6,background:'var(--gray-200)',borderRadius:3,marginTop:3,overflow:'hidden'}}>
+                        <div style={{
+                          height:'100%',borderRadius:3,
+                          background:i===0?'#F5C518':i===1?'#94a3b8':'var(--primary)',
+                          width:`${Math.min(100,(m.monto/(ventas.topMozos[0]?.monto||1))*100)}%`,
+                          transition:'width .5s'
+                        }}/>
+                      </div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:800,color:'var(--success)',fontSize:14}}>S/ {m.monto.toFixed(2)}</div>
+                      <div style={{fontSize:11,color:'var(--gray-400)'}}>{m.pedidos} pedidos</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{textAlign:'center',padding:24,color:'var(--gray-400)',fontSize:13}}>
+                Sin datos para este período
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* TABLA DETALLE para PDF */}
         {ventas?.porDia?.length > 0 && (
           <div className="card" style={{marginTop:16}}>
