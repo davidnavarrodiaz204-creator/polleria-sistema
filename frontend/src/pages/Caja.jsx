@@ -46,15 +46,22 @@ export default function Caja() {
   })
   const [consultando, setConsultando] = useState(false)
   const [msgDoc, setMsgDoc]           = useState('')
-  const [emitiendo, setEmitiendo]     = useState(false)
-  const [comprobanteEmitido, setComprobanteEmitido] = useState(null)
 
   const cargar = useCallback(() => {
     api.get('/caja/hoy').then(r => setCaja(r.data)).catch(() => {})
     api.get('/egresos').then(r => setEgresos(r.data)).catch(() => {})
-    api.get('/pedidos').then(r => setPedidos(
-      r.data.filter(p => !p.pagado && !['cancelado'].includes(p.estado))
-    )).catch(() => {})
+    const hoy = new Date().toISOString().split('T')[0]
+    api.get('/pedidos/historial?desde=' + hoy + '&hasta=' + hoy + '&limit=500')
+      .then(r => {
+        setPedidos(r.data.filter(p => !p.pagado && !['cancelado','entregado'].includes(p.estado)))
+        setPedidosPagados(r.data.filter(p => p.pagado))
+      })
+      .catch(() => {
+        api.get('/pedidos').then(r => {
+          setPedidos(r.data.filter(p => !p.pagado && !['cancelado'].includes(p.estado)))
+          setPedidosPagados(r.data.filter(p => p.pagado))
+        }).catch(() => {})
+      })
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
@@ -125,16 +132,31 @@ export default function Caja() {
       // Guardar o actualizar cliente si tiene documento
       let clienteId = cobro.clienteId
       if (cobro.numDoc && cobro.nombre) {
-        const { data: cl } = await api.post('/clientes', {
-          tipoDoc:    cobro.numDoc.length === 8 ? 'dni' : 'ruc',
-          numDoc:     cobro.numDoc,
-          nombre:     cobro.nombre,
-          razonSocial:cobro.razonSocial,
-          direccion:  cobro.direccion,
-          celular:    cobro.celular,
-          aceptaPromo:cobro.aceptaPromo,
-        })
-        clienteId = cl._id
+        const datosCliente = {
+          tipoDoc:     cobro.numDoc.length === 8 ? 'dni' : 'ruc',
+          numDoc:      cobro.numDoc,
+          nombre:      cobro.nombre,
+          razonSocial: cobro.razonSocial,
+          direccion:   cobro.direccion,
+          celular:     cobro.celular,
+          aceptaPromo: cobro.aceptaPromo,
+        }
+        if (cobro.clienteId) {
+          // Cliente ya existe → solo actualizar sus datos
+          await api.put('/clientes/' + cobro.clienteId, datosCliente).catch(() => {})
+        } else {
+          // Cliente nuevo → crear
+          try {
+            const { data: cl } = await api.post('/clientes', datosCliente)
+            clienteId = cl._id
+          } catch(e) {
+            // Si ya existe por race condition, buscar su ID
+            if (e.response?.status === 400) {
+              const { data: lista } = await api.get('/clientes?q=' + cobro.numDoc).catch(() => ({ data: [] }))
+              if (lista?.[0]) clienteId = lista[0]._id
+            }
+          }
+        }
       }
 
       // Marcar pedido como pagado
@@ -162,25 +184,6 @@ export default function Caja() {
         metodoPago:  cobro.metodoPago,
         vuelto,
       }, config)
-
-      // Emitir comprobante electrónico si es boleta o factura
-      if (['boleta','factura'].includes(cobro.tipoComprobante)) {
-        setEmitiendo(true)
-        try {
-          const { data: fe } = await api.post('/facturacion/emitir', {
-            pedidoId: modalCobro._id,
-            tipo: cobro.tipoComprobante,
-          })
-          if (fe.success && !fe.yaEmitido) {
-            setComprobanteEmitido(fe)
-          }
-        } catch (feErr) {
-          // No bloquear el cobro si Nubefact falla — el ticket ya se imprimió
-          console.log('Nubefact no disponible:', feErr.message)
-        } finally {
-          setEmitiendo(false)
-        }
-      }
 
       setModalCobro(null)
       cargar()
@@ -593,30 +596,6 @@ export default function Caja() {
           </div>
         </div>
       )}
-      {/* Modal comprobante electrónico emitido */}
-      {comprobanteEmitido && (
-        <div className="modal-overlay" onClick={()=>setComprobanteEmitido(null)}>
-          <div className="modal" style={{maxWidth:400,textAlign:'center'}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:40,marginBottom:8}}>✅</div>
-            <div className="modal-title" style={{color:'var(--success)'}}>Comprobante Electrónico Emitido</div>
-            <div style={{background:'var(--gray-50)',borderRadius:'var(--radius-sm)',padding:'12px 16px',margin:'12px 0',fontSize:13}}>
-              <div><strong>Serie:</strong> {comprobanteEmitido.serie}-{String(comprobanteEmitido.numero).padStart(8,'0')}</div>
-              <div><strong>Estado SUNAT:</strong> <span style={{color:'var(--success)',fontWeight:700}}>{comprobanteEmitido.estado?.toUpperCase()}</span></div>
-              {comprobanteEmitido.modo==='demo' && (
-                <div style={{color:'var(--warning)',fontSize:11,marginTop:6}}>⚠️ Modo DEMO — sin valor legal</div>
-              )}
-            </div>
-            <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
-              {comprobanteEmitido.pdfUrl && (
-                <a href={comprobanteEmitido.pdfUrl} target="_blank" rel="noreferrer"
-                  className="btn btn-primary btn-sm">📄 Ver PDF SUNAT</a>
-              )}
-              <button className="btn btn-ghost btn-sm" onClick={()=>setComprobanteEmitido(null)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   )
 }

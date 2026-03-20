@@ -120,7 +120,7 @@ export default function Configuracion() {
     { k: 'modulos',    l: 'Módulos' },
     { k: 'sunat',      l: '🧾 SUNAT' },
     { k: 'backup',     l: 'Backups' },
-    { k: 'reset',      l: '🔄 Reset' },
+    // { k: 'reset', l: '🔄 Reset' },  // activar cuando se necesite
   ]
 
   return (
