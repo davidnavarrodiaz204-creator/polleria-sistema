@@ -82,16 +82,12 @@ export default function WhatsApp() {
         ))}
       </div>
 
-      {/* Aviso si no está configurado */}
+      {/* Aviso si WhatsApp no está activado */}
       {!whatsappActivo && (
         <div style={{ background:'#FFF8E1', border:'1px solid #FFE082', borderRadius:'var(--radius-sm)', padding:'14px 16px', marginBottom:20 }}>
-          <div style={{ fontWeight:700, fontSize:14, marginBottom:8 }}>Cómo activar WhatsApp gratis (CallMeBot)</div>
-          <div style={{ fontSize:13, lineHeight:1.8 }}>
-            <strong>1.</strong> Guarda este número en tus contactos de WhatsApp: <strong>+34 644 61 91 29</strong><br/>
-            <strong>2.</strong> Envíale EXACTAMENTE este mensaje: <code style={{background:'#eee',padding:'1px 6px',borderRadius:4}}>I allow callmebot to send me messages</code><br/>
-            <strong>3.</strong> Recibirás tu API key por WhatsApp<br/>
-            <strong>4.</strong> En Render → backend → Environment agrega: <code style={{background:'#eee',padding:'1px 6px',borderRadius:4}}>CALLMEBOT_APIKEY = tu_key</code><br/>
-            <strong>5.</strong> Redespliega el backend y vuelve aquí
+          <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>⚠️ WhatsApp no activado</div>
+          <div style={{ fontSize:13, color:'var(--gray-700)', lineHeight:1.7 }}>
+            Para activar el envío de mensajes, configura la variable <code style={{background:'#eee',padding:'1px 6px',borderRadius:4}}>CALLMEBOT_APIKEY</code> en tu servidor (Render → backend → Environment).
           </div>
         </div>
       )}

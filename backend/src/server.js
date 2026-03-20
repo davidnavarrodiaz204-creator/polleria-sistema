@@ -1,18 +1,20 @@
+/**
+ * server.js — Servidor principal PollerOS
+ * Autor: David Navarro Diaz
+ */
 require('dotenv').config();
 const express = require('express');
-const http = require('http');
+const http    = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
-const connectDB = require('./config/db');
+const cors   = require('cors');
+const connectDB     = require('./config/db');
 const { setupSocket } = require('./config/socket');
 
-// Conectar a MongoDB
 connectDB();
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-
-const io = new Server(server, {
+const io     = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -20,17 +22,11 @@ const io = new Server(server, {
   },
 });
 
-// ── Middleware global ──────────────────────────────────────
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true,
-}));
+app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
 app.use(express.json());
-
-// Inyectar io en cada request
 app.use((req, _res, next) => { req.io = io; next(); });
 
-// ── Rutas ─────────────────────────────────────────────────
+// ── Rutas ──────────────────────────────────────────────────────
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/config',    require('./routes/config'));
 app.use('/api/usuarios',  require('./routes/usuarios'));
@@ -44,17 +40,43 @@ app.use('/api/backup',    require('./routes/backup'));
 app.use('/api/caja',      require('./routes/caja'));
 app.use('/api/egresos',   require('./routes/egresos'));
 app.use('/api/reportes',  require('./routes/reportes'));
+app.use('/api/inventario',require('./routes/inventario'));
+app.use('/api/reservas',  require('./routes/reservas'));
 
-// Health check
 app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date() })
+  res.json({ status: 'ok', version: '2.0.0', timestamp: new Date() })
 );
 
-// ── Socket.io ─────────────────────────────────────────────
 setupSocket(io);
 
-// ── Servidor ──────────────────────────────────────────────
+// ── Backup automático cada 6 horas ────────────────────────────
+const Backup   = require('./models/Backup');
+const Usuario  = require('./models/Usuario');
+const Mesa     = require('./models/Mesa');
+const Producto = require('./models/Producto');
+const Pedido   = require('./models/Pedido');
+const Cliente  = require('./models/Cliente');
+const Caja     = require('./models/Caja');
+
+const hacerBackupAutomatico = async () => {
+  try {
+    const [usuarios, mesas, productos, pedidos, clientes, cajas] = await Promise.all([
+      Usuario.countDocuments(), Mesa.countDocuments(), Producto.countDocuments(),
+      Pedido.countDocuments(),  Cliente.countDocuments(), Caja.countDocuments()
+    ]);
+    const resumen = { usuarios, mesas, productos, pedidos, clientes, cajas };
+    const tamaño  = Object.values(resumen).reduce((a, b) => a + b, 0);
+    await Backup.create({ tipo: 'automatico', tamaño, resumen, creadoPor: 'sistema' });
+    console.log(`✅ Backup automático creado: ${tamaño} registros`);
+  } catch (err) {
+    console.error('❌ Error en backup automático:', err.message);
+  }
+};
+
+// Ejecutar cada 6 horas (6 * 60 * 60 * 1000 ms)
+setInterval(hacerBackupAutomatico, 6 * 60 * 60 * 1000);
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () =>
-  console.log(`🍗 PollerOS corriendo en http://localhost:${PORT}`)
+  console.log(`🍗 PollerOS v2.0 corriendo en http://localhost:${PORT}`)
 );

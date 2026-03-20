@@ -95,11 +95,10 @@ export default function Configuracion() {
   }
 
   const TABS = [
-    { k: 'negocio', l: 'Negocio' },
+    { k: 'negocio',    l: 'Negocio' },
     { k: 'apariencia', l: 'Apariencia' },
-    { k: 'modulos', l: 'Módulos' },
-    { k: 'backup', l: 'Backups' },
-    { k: 'apis', l: 'APIs' },
+    { k: 'modulos',    l: 'Módulos' },
+    { k: 'backup',     l: 'Backups' },
   ]
 
   return (
@@ -281,37 +280,6 @@ export default function Configuracion() {
         </div>
       )}
 
-      {/* APIs */}
-      {tab === 'apis' && (
-        <div className="card" style={{ maxWidth: 600 }}>
-          <div className="card-title">Configuración de APIs externas</div>
-          <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16, lineHeight: 1.7 }}>
-            Estas variables se configuran en el servidor (Render → backend → Environment).
-            No se pueden cambiar desde aquí por seguridad.
-          </p>
-
-          {[
-            { key: 'APIS_PERU_TOKEN', label: 'Token DNI/RUC (apis.net.pe)', link: 'https://apis.net.pe', desc: 'Consulta automática de DNI y RUC de SUNAT/RENIEC. Registro gratis.' },
-            { key: 'CALLMEBOT_APIKEY', label: 'API Key WhatsApp (CallMeBot)', link: 'https://callmebot.com', desc: 'Envío de mensajes WhatsApp gratis. Agrega +34 644 61 91 29 y envíale "I allow callmebot to send me messages".' },
-            { key: 'JWT_SECRET', label: 'JWT Secret (seguridad)', link: null, desc: 'Clave secreta para autenticación. Cámbiala por un texto largo y seguro.' },
-            { key: 'MONGODB_URI', label: 'MongoDB URI', link: 'https://mongodb.com/atlas', desc: 'String de conexión a tu base de datos MongoDB Atlas.' },
-          ].map((item, i) => (
-            <div key={i} style={{ marginBottom: 16, padding: '12px 14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <code style={{ fontWeight: 700, fontSize: 13 }}>{item.key}</code>
-                {item.link && (
-                  <a href={item.link} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                    Registrarse →
-                  </a>
-                )}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{item.label}</div>
-              <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>{item.desc}</div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

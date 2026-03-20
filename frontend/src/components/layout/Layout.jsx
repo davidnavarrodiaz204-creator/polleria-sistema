@@ -1,22 +1,35 @@
+/**
+ * Layout.jsx — Estructura principal: sidebar + topbar + contenido
+ * Autor: David Navarro Diaz
+ */
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useApp } from '../../context/AppContext'
 import './Layout.css'
 
+// Navegación organizada por grupos
 const NAV = [
-  { to: '/',            icon: '📊', label: 'Dashboard',    roles: ['admin','mozo','cocina','delivery'] },
-  { to: '/mesas',       icon: '🪑', label: 'Mesas',         roles: ['admin','mozo'] },
-  { to: '/pedidos',     icon: '📋', label: 'Nuevo Pedido',  roles: ['admin','mozo'] },
-  { to: '/cocina',      icon: '👨‍🍳', label: 'Cocina',         roles: ['admin','cocina'] },
-  { to: '/delivery',    icon: '🛵', label: 'Delivery',      roles: ['admin','mozo','delivery'] },
-  { to: '/caja',        icon: '💵', label: 'Caja',          roles: ['admin'] },
-  { to: '/clientes',    icon: '👤', label: 'Clientes',       roles: ['admin'] },
-  { to: '/carta',       icon: '📖', label: 'Carta / Menú',  roles: ['admin'] },
-  { to: '/usuarios',    icon: '👥', label: 'Usuarios',      roles: ['admin'] },
-  { to: '/reportes',     icon: '📈', label: 'Reportes',      roles: ['admin'] },
-  { to: '/whatsapp',     icon: '💬', label: 'WhatsApp',       roles: ['admin'] },
-  { to: '/configuracion',icon: '⚙️', label: 'Configuración',  roles: ['admin'] },
+  // Operaciones del día
+  { to: '/',             icon: '📊', label: 'Dashboard',      roles: ['admin','mozo','cocina','delivery'] },
+  { to: '/mesas',        icon: '🪑', label: 'Mesas',           roles: ['admin','mozo'] },
+  { to: '/pedidos',      icon: '📋', label: 'Nuevo Pedido',    roles: ['admin','mozo'] },
+  { to: '/reservas',     icon: '📅', label: 'Reservas',        roles: ['admin','mozo'] },
+  { to: '/cocina',       icon: '👨‍🍳', label: 'Cocina',           roles: ['admin','cocina'] },
+  { to: '/delivery',     icon: '🛵', label: 'Delivery',        roles: ['admin','mozo','delivery'] },
+  // Caja y ventas
+  { to: '/caja',         icon: '💵', label: 'Caja',            roles: ['admin'] },
+  { to: '/historial',    icon: '🧾', label: 'Historial',       roles: ['admin'] },
+  { to: '/comprobantes', icon: '📄', label: 'Comprobantes',    roles: ['admin'] },
+  // Gestión
+  { to: '/inventario',   icon: '📦', label: 'Inventario',      roles: ['admin'] },
+  { to: '/clientes',     icon: '👤', label: 'Clientes',         roles: ['admin'] },
+  { to: '/carta',        icon: '📖', label: 'Carta / Menú',    roles: ['admin'] },
+  // Administración
+  { to: '/usuarios',     icon: '👥', label: 'Usuarios',        roles: ['admin'] },
+  { to: '/reportes',     icon: '📈', label: 'Reportes',        roles: ['admin'] },
+  { to: '/whatsapp',     icon: '💬', label: 'WhatsApp',         roles: ['admin'] },
+  { to: '/configuracion',icon: '⚙️', label: 'Configuración',    roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -26,15 +39,12 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const navItems = NAV.filter(n => n.roles.includes(usuario?.rol))
-
   const handleLogout = () => { logout(); navigate('/login') }
 
   return (
     <div className="layout">
-      {/* Overlay mobile */}
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
-      {/* SIDEBAR */}
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <div className="logo-icon">{config.logo || '🍗'}</div>
@@ -69,7 +79,6 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* TOPBAR */}
       <header className="topbar no-print">
         <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
         <div className="topbar-brand">{config.nombre || 'PollerOS'}</div>
@@ -83,7 +92,6 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="main-content">
         <Outlet />
       </main>
