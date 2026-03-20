@@ -45,6 +45,7 @@ app.use('/api/reportes',  require('./routes/reportes'));
 try { app.use('/api/inventario',   require('./routes/inventario'));   } catch(e) {}
 try { app.use('/api/reservas',     require('./routes/reservas'));     } catch(e) {}
 try { app.use('/api/facturacion',  require('./routes/facturacion'));  } catch(e) {}
+try { app.use('/api/reset',        require('./routes/reset'));        } catch(e) {}
 
 // Health check
 app.get('/api/health', (_req, res) =>

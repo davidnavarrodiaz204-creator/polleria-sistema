@@ -41,6 +41,21 @@ router.get('/resumen', auth, async (_req, res) => {
       .sort((a, b) => b[1] - a[1]).slice(0, 5)
       .map(([nombre, cantidad]) => ({ nombre, cantidad }));
 
+    // Pedidos activos en cocina (para mostrar en dashboard)
+    const pedidosActivos = pedidosHoy
+      .filter(p => !p.pagado && !['cancelado','entregado'].includes(p.estado))
+      .slice(0, 10)
+      .map(p => ({
+        tipo:       p.tipo,
+        mesaNumero: p.mesaNumero,
+        estado:     p.estado,
+        total:      p.total,
+      }))
+
+    // Pedidos pendientes de cobro
+    const pedidosPendientesCobro = pedidosHoy
+      .filter(p => !p.pagado && p.estado === 'entregado').length
+
     res.json({
       ventasHoy,
       pedidosHoy: pedidosHoy.length + deliveryHoy.length,
@@ -52,6 +67,8 @@ router.get('/resumen', auth, async (_req, res) => {
       totalClientes,
       porMetodo,
       topProductos,
+      pedidosActivos,
+      pedidosPendientesCobro,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

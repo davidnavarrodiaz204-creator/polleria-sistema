@@ -23,6 +23,19 @@ export default function Configuracion() {
   const [backups, setBackups] = useState([])
   const [estadoNubefact, setEstadoNubefact] = useState(null)
 
+  // Reset del sistema
+  const [preview, setPreview]         = useState(null)
+  const [confirmarReset, setConfirmar] = useState('')
+  const [resetClientes, setResetCli]  = useState(false)
+  const [reseteando, setReseteando]   = useState(false)
+  const [resetOk, setResetOk]         = useState(null)
+
+  useEffect(() => {
+    if (tab === 'reset') {
+      api.get('/reset/preview').then(r => setPreview(r.data)).catch(() => {})
+    }
+  }, [tab])
+
   useEffect(() => {
     if (tab === 'sunat') {
       api.get('/facturacion/estado').then(r => setEstadoNubefact(r.data)).catch(() => {})
@@ -107,6 +120,7 @@ export default function Configuracion() {
     { k: 'modulos',    l: 'Módulos' },
     { k: 'sunat',      l: '🧾 SUNAT' },
     { k: 'backup',     l: 'Backups' },
+    { k: 'reset',      l: '🔄 Reset' },
   ]
 
   return (
@@ -424,6 +438,120 @@ export default function Configuracion() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── TAB RESET ── */}
+      {tab === 'reset' && (
+        <div style={{maxWidth:600}}>
+
+          {resetOk ? (
+            <div className="card" style={{textAlign:'center',padding:40,borderLeft:'4px solid var(--success)'}}>
+              <div style={{fontSize:48}}>✅</div>
+              <div style={{fontSize:22,fontWeight:800,color:'var(--success)',marginTop:12}}>Sistema reseteado</div>
+              <div style={{fontSize:14,color:'var(--gray-600)',marginTop:8,lineHeight:1.8}}>
+                Se borraron: <strong>{resetOk.borrado.pedidos}</strong> pedidos,&nbsp;
+                <strong>{resetOk.borrado.cajas}</strong> cajas,&nbsp;
+                <strong>{resetOk.borrado.egresos}</strong> egresos
+                {resetOk.borrado.clientes > 0 && `, ${resetOk.borrado.clientes} clientes`}
+              </div>
+              <div style={{fontSize:13,color:'var(--gray-500)',marginTop:8}}>
+                Se conservaron: usuarios, mesas, carta/menú
+              </div>
+              <button className="btn btn-primary" style={{marginTop:20}}
+                onClick={() => { setResetOk(null); setConfirmar(''); setPreview(null)
+                  api.get('/reset/preview').then(r=>setPreview(r.data)).catch(()=>{}) }}>
+                Volver
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Advertencia */}
+              <div style={{background:'#FFF3CD',border:'1px solid #FFE082',borderRadius:'var(--radius-sm)',padding:'14px 16px',marginBottom:16,fontSize:13,lineHeight:1.8}}>
+                ⚠️ <strong>Esta acción es irreversible.</strong> Se borrará toda la data de ventas.
+                Se crea un backup automático antes de ejecutar.
+              </div>
+
+              {/* Preview */}
+              {preview && (
+                <div className="card" style={{marginBottom:16}}>
+                  <div className="card-title">Vista previa — qué se va a borrar</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:'var(--danger)',marginBottom:8,textTransform:'uppercase'}}>Se borra ❌</div>
+                      {Object.entries(preview.seBorra).map(([k,v])=>(
+                        <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--gray-100)',fontSize:13}}>
+                          <span style={{textTransform:'capitalize'}}>{k}</span>
+                          <strong style={{color:v>0?'var(--danger)':'var(--gray-400)'}}>{v}</strong>
+                        </div>
+                      ))}
+                      <div style={{padding:'5px 0',fontSize:13,color:'var(--gray-500)'}}>
+                        Correlativo actual: <strong>#{preview.correlativoActual}</strong> → reinicia en #1
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:'var(--success)',marginBottom:8,textTransform:'uppercase'}}>Se conserva ✅</div>
+                      {Object.entries(preview.seConserva).map(([k,v])=>(
+                        <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--gray-100)',fontSize:13}}>
+                          <span style={{textTransform:'capitalize'}}>{k === 'productos' ? 'carta/menú' : k}</span>
+                          <strong style={{color:'var(--success)'}}>{v}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Opción de borrar clientes también */}
+                  <label style={{display:'flex',alignItems:'center',gap:10,fontSize:13,cursor:'pointer',padding:'10px 0',borderTop:'1px solid var(--gray-200)'}}>
+                    <input type="checkbox" checked={resetClientes}
+                      onChange={e=>setResetCli(e.target.checked)}/>
+                    <div>
+                      <div style={{fontWeight:600}}>También borrar clientes ({preview.seConserva.clientes})</div>
+                      <div style={{fontSize:11,color:'var(--gray-500)'}}>Por defecto se conservan. Marca esto solo si quieres entregar el sistema completamente vacío.</div>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Confirmación */}
+              <div className="card">
+                <div className="card-title" style={{color:'var(--danger)'}}>⚠️ Confirmar reset</div>
+                <div style={{fontSize:13,color:'var(--gray-600)',marginBottom:12}}>
+                  Para ejecutar el reset escribe exactamente:&nbsp;
+                  <code style={{background:'var(--gray-100)',padding:'2px 6px',borderRadius:4,fontWeight:700}}>
+                    RESETEAR SISTEMA
+                  </code>
+                </div>
+                <input className="form-input" style={{marginBottom:12,fontFamily:'monospace'}}
+                  placeholder="Escribe: RESETEAR SISTEMA"
+                  value={confirmarReset}
+                  onChange={e=>setConfirmar(e.target.value)}/>
+                <button
+                  className="btn"
+                  style={{
+                    width:'100%', padding:14, fontSize:15, fontWeight:800,
+                    background: confirmarReset==='RESETEAR SISTEMA' ? 'var(--danger)' : 'var(--gray-200)',
+                    color: confirmarReset==='RESETEAR SISTEMA' ? 'white' : 'var(--gray-500)',
+                    border:'none', borderRadius:'var(--radius)', cursor: confirmarReset==='RESETEAR SISTEMA'?'pointer':'not-allowed'
+                  }}
+                  disabled={confirmarReset !== 'RESETEAR SISTEMA' || reseteando}
+                  onClick={async () => {
+                    if (!confirm('¿Estás SEGURO? Esta acción no se puede deshacer.')) return
+                    setReseteando(true)
+                    try {
+                      const { data } = await api.post('/reset/ejecutar', {
+                        confirmar: confirmarReset,
+                        resetClientes,
+                      })
+                      setResetOk(data)
+                    } catch (err) {
+                      alert(err.response?.data?.error || 'Error al resetear')
+                    } finally { setReseteando(false) }
+                  }}>
+                  {reseteando ? '⏳ Reseteando...' : '🔄 Ejecutar Reset del Sistema'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
