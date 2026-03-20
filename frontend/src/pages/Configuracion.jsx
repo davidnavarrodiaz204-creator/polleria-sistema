@@ -149,6 +149,43 @@ export default function Configuracion() {
               <input className="form-input" value={form.direccion || ''} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">Email</label>
               <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+
+            {/* WhatsApp CallMeBot */}
+            <div style={{borderTop:'1px solid var(--gray-200)',marginTop:16,paddingTop:16}}>
+              <div className="card-title" style={{marginBottom:12}}>💬 WhatsApp (CallMeBot)</div>
+              <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14,lineHeight:1.7}}>
+                Configura aquí tu número y API key para enviar mensajes de WhatsApp a tus clientes.
+                Si ya tienes <code>CALLMEBOT_APIKEY</code> en Railway, tiene prioridad sobre este campo.
+              </div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Tu número WhatsApp</label>
+                  <input className="form-input"
+                    value={form.whatsapp?.numero || ''}
+                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, numero:e.target.value}})}
+                    placeholder="51987654321" maxLength={15}/>
+                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Con código de país: 51 + número</div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">CallMeBot API Key</label>
+                  <input className="form-input"
+                    value={form.whatsapp?.apikey || ''}
+                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, apikey:e.target.value}})}
+                    placeholder="123456" type="password"/>
+                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>
+                    <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer" style={{color:'var(--info)'}}>
+                      ¿Cómo obtener tu API key? →
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div style={{fontSize:12,color:'var(--gray-500)',background:'var(--gray-50)',padding:'8px 12px',borderRadius:'var(--radius-sm)'}}>
+                <strong>Pasos para activar:</strong> 1) Guarda +34 644 61 91 29 en WhatsApp
+                2) Envíale: <code>I allow callmebot to send me messages</code>
+                3) Recibirás tu API key por WhatsApp — pégala arriba
+              </div>
+            </div>
+
           </div>
         )}
 

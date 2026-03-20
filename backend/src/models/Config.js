@@ -35,6 +35,13 @@ const configSchema = new mongoose.Schema({
     // demo = pruebas sin valor legal | produccion = comprobantes reales SUNAT
   },
 
+  // WhatsApp — CallMeBot
+  whatsapp: {
+    numero:  { type: String, default: '' },   // número del admin que recibe (con código país: 51987654321)
+    apikey:  { type: String, default: '' },   // CallMeBot API key (también en var entorno)
+    activo:  { type: Boolean, default: false },
+  },
+
   // Módulos activos
   modulos: {
     mesas:     { type: Boolean, default: true },

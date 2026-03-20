@@ -2,6 +2,7 @@ const router  = require('express').Router();
 const axios   = require('axios');
 const Cliente = require('../models/Cliente');
 const { auth, soloAdmin } = require('../middleware/auth');
+const Config  = require('../models/Config');
 
 // ── Enviar WhatsApp via CallMeBot (gratis) ────────────────────────────────────
 // INSTRUCCIONES para activar:
@@ -9,10 +10,12 @@ const { auth, soloAdmin } = require('../middleware/auth');
 // 2. Envíale EXACTAMENTE este mensaje: I allow callmebot to send me messages
 // 3. Recibirás tu API key. Agrégala en .env: CALLMEBOT_APIKEY=tu_key
 const enviarWhatsApp = async (celular, mensaje) => {
-  const apikey = process.env.CALLMEBOT_APIKEY || '';
+  // Prioridad: variable de entorno → configuración del panel
+  const config = await Config.findOne() || {};
+  const apikey = process.env.CALLMEBOT_APIKEY || config.whatsapp?.apikey || '';
 
   if (!apikey) {
-    throw new Error('CALLMEBOT_APIKEY no configurado. Sigue las instrucciones del README para activar WhatsApp.');
+    throw new Error('WhatsApp no configurado. Ve a Configuración → WhatsApp y agrega tu API key de CallMeBot.');
   }
 
   // Limpiar y formatear número peruano
@@ -20,15 +23,10 @@ const enviarWhatsApp = async (celular, mensaje) => {
   if (!num.startsWith('51')) num = '51' + num;
 
   const url = 'https://api.callmebot.com/whatsapp.php';
-  const params = {
-    phone:  num,
-    text:   mensaje,
-    apikey: apikey,
-  };
+  const params = { phone: num, text: mensaje, apikey };
 
   const { data } = await axios.get(url, { params, timeout: 15000 });
 
-  // CallMeBot devuelve texto, verificar que no sea error
   if (typeof data === 'string' && data.toLowerCase().includes('error')) {
     throw new Error('CallMeBot error: ' + data);
   }
@@ -49,10 +47,13 @@ router.get('/stats', auth, soloAdmin, async (_req, res) => {
       cumpleanos: { $regex: `^${mesActual}-` },
     });
 
-    const apikey = process.env.CALLMEBOT_APIKEY || '';
+    const config  = await Config.findOne() || {};
+    const apikey  = process.env.CALLMEBOT_APIKEY || config.whatsapp?.apikey || '';
     res.json({
       total, conPromo, conCump, cumpleMes,
       whatsappActivo: !!apikey,
+      numeroConfigurado: config.whatsapp?.numero || '',
+      modoConfig: process.env.CALLMEBOT_APIKEY ? 'railway' : (config.whatsapp?.apikey ? 'panel' : 'ninguno'),
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
