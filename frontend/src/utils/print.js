@@ -108,6 +108,7 @@ export const imprimirBoleta = (pedido, config = {}) => {
   .bold    { font-weight: bold; }
   .negocio { font-size: 15px; font-weight: bold; text-align: center; letter-spacing: 0.5px; }
   .logo-emoji { font-size: 28px; text-align: center; display: block; margin-bottom: 3px; }
+  .logo-img { width: 72px; height: 72px; object-fit: contain; display: block; margin: 0 auto 4px; }
   .titulo-box {
     border: 2px solid #000;
     text-align: center;
@@ -148,7 +149,10 @@ export const imprimirBoleta = (pedido, config = {}) => {
 <body>
 
   <!-- ENCABEZADO -->
-  <span class="logo-emoji">${logo}</span>
+  ${logo && logo.startsWith('data:')
+    ? `<img src="${logo}" class="logo-img" alt="logo"/>`
+    : `<span class="logo-emoji">${logo}</span>`
+  }
   ${rucLocal ? `<div class="center bold">RUC: ${rucLocal}</div>` : ''}
   <div class="negocio">${nombre.toUpperCase()}</div>
   ${config.razonSocial ? `<div class="center" style="font-size:11px">${config.razonSocial}</div>` : ''}
