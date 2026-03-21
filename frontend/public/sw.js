@@ -44,19 +44,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url)
 
-  // Las llamadas a la API siempre van a la red (no cachear datos)
+  // Solo manejar peticiones GET — ignorar POST, PUT, DELETE
+  if (e.request.method !== 'GET') return
+
+  // Las llamadas a la API siempre van a la red directamente sin interceptar
   if (url.pathname.startsWith('/api') || url.hostname !== location.hostname) {
-    e.respondWith(
-      fetch(e.request).catch(() => {
-        // Si no hay internet y es una API, devolver error JSON
-        if (e.request.headers.get('accept')?.includes('application/json')) {
-          return new Response(
-            JSON.stringify({ error: 'Sin conexión a internet' }),
-            { status: 503, headers: { 'Content-Type': 'application/json' } }
-          )
-        }
-      })
-    )
+    // No interceptar — dejar que el navegador maneje directo
     return
   }
 

@@ -19,13 +19,6 @@ export default function Configuracion() {
   const [ok, setOk] = useState(false)
   const [tab, setTab] = useState('negocio')
 
-  // Sincronizar form cuando llega la config real del servidor
-  useEffect(() => {
-    if (config && config._id) {
-      setForm({ ...config })
-    }
-  }, [config._id])
-
   // Backups
   const [backups, setBackups] = useState([])
   const [creandoBk, setCreandoBk] = useState(false)
@@ -106,6 +99,7 @@ export default function Configuracion() {
     { k: 'apariencia', l: 'Apariencia' },
     { k: 'modulos',    l: 'Módulos' },
     { k: 'backup',     l: 'Backups' },
+    { k: 'reset',      l: '🔄 Reset' },
   ]
 
   return (
@@ -227,9 +221,13 @@ export default function Configuracion() {
             }}>
               <span style={{
                 fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800,
-                color: form.colorTexto || '#212121'
+                color: form.colorTexto || '#212121',
+                display:'flex', alignItems:'center', gap:8
               }}>
-                {form.logo || '🍗'} {form.nombre || 'Mi Pollería'}
+                {form.logo?.startsWith('data:')
+                  ? <img src={form.logo} alt="logo" style={{width:28,height:28,objectFit:'contain',borderRadius:4}}/>
+                  : (form.logo || '🍗')
+                } {form.nombre || 'Mi Pollería'}
               </span>
             </div>
           </div>
