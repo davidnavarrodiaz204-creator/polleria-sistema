@@ -307,10 +307,7 @@ export default function Configuracion() {
             </div>
 
           </div>
-          <div style={{ marginTop: 16 }}>
-            {ok && <div style={{ background: '#E8F5E9', color: 'var(--success)', border: '1px solid #C8E6C9', borderRadius: 'var(--radius-sm)', padding: '10px 16px', marginBottom: 12, fontWeight: 600 }}>✅ Guardado</div>}
-            <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar Cambios'}</button>
-          </div>
+
         </form>
       )}
 
@@ -362,10 +359,7 @@ export default function Configuracion() {
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 16 }}>
-            {ok && <div style={{ background: '#E8F5E9', color: 'var(--success)', border: '1px solid #C8E6C9', borderRadius: 'var(--radius-sm)', padding: '10px 16px', marginBottom: 12, fontWeight: 600 }}>✅ Guardado</div>}
-            <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar Cambios'}</button>
-          </div>
+
         </form>
       )}
 
