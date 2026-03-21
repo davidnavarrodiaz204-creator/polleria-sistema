@@ -29,6 +29,14 @@ export default function Configuracion() {
   const [creandoBk, setCreandoBk] = useState(false)
   const [msgBk, setMsgBk]         = useState('')
 
+  // SUNAT
+  const [sunatActivo, setSunatActivo] = useState(false)
+  useEffect(() => {
+    api.get('/facturacion/estado')
+      .then(r => setSunatActivo(r.data.configurado))
+      .catch(() => {})
+  }, [])
+
   // Reset
   const [preview, setPreview]         = useState(null)
   const [confirmarReset, setConfirmar] = useState('')
@@ -116,6 +124,7 @@ export default function Configuracion() {
     { k: 'modulos',    l: 'Módulos'    },
     { k: 'whatsapp',   l: '💬 WhatsApp' },
     { k: 'series',     l: '🧾 Series'   },
+    { k: 'sunat',      l: sunatActivo ? '🟢 SUNAT' : '⚪ SUNAT' },
     { k: 'backup',     l: 'Backups'    },
     { k: 'reset',      l: '🔄 Reset'   },
   ]
@@ -220,9 +229,14 @@ export default function Configuracion() {
                   }}/>
               ))}
             </div>
-            <div style={{ borderRadius:12, padding:'14px 20px', marginBottom:12, background:form.colorPrimario||'#F5C518' }}>
+            <div style={{ borderRadius:12, padding:'14px 20px', marginBottom:12, background:form.colorPrimario||'#F5C518', display:'flex', alignItems:'center', gap:10 }}>
+              {form.logo?.startsWith('data:') ? (
+                <img src={form.logo} alt="logo" style={{width:32,height:32,borderRadius:6,objectFit:'cover',flexShrink:0}}/>
+              ) : (
+                <span style={{fontSize:28}}>{form.logo||'🍗'}</span>
+              )}
               <span style={{ fontFamily:'var(--font-display)', fontSize:20, fontWeight:800, color:form.colorTexto||'#212121' }}>
-                {form.logo||'🍗'} {form.nombre||'Mi Pollería'}
+                {form.nombre||'Mi Pollería'}
               </span>
             </div>
           </div>
@@ -268,10 +282,7 @@ export default function Configuracion() {
         <form onSubmit={guardar}>
           <div className="card" style={{ maxWidth:560 }}>
             <div className="card-title">💬 WhatsApp — CallMeBot</div>
-            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:16,lineHeight:1.7}}>
-              Configura tu número y API key para enviar mensajes automáticos a tus clientes.
-              Si tienes <code>CALLMEBOT_APIKEY</code> en Railway, ese tiene prioridad sobre este campo.
-            </div>
+
             <div className="grid-2">
               <div className="form-group">
                 <label className="form-label">Tu número WhatsApp</label>
@@ -294,12 +305,7 @@ export default function Configuracion() {
                 </div>
               </div>
             </div>
-            <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'var(--radius-sm)',padding:'10px 14px',fontSize:13,color:'#1D4ED8',lineHeight:1.8}}>
-              <strong>Pasos para activar:</strong><br/>
-              1. Guarda el número <strong>+34 644 61 91 29</strong> en tus contactos de WhatsApp<br/>
-              2. Envíale exactamente: <code>I allow callmebot to send me messages</code><br/>
-              3. Recibirás tu API key por WhatsApp — pégala arriba y guarda
-            </div>
+
           </div>
           <div style={{marginTop:16}}>
             {ok && <div style={{background:'#E8F5E9',color:'var(--success)',border:'1px solid #C8E6C9',borderRadius:'var(--radius-sm)',padding:'10px 16px',marginBottom:12,fontWeight:600}}>✅ Guardado</div>}
@@ -361,6 +367,76 @@ export default function Configuracion() {
             <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando?'Guardando...':'Guardar Cambios'}</button>
           </div>
         </form>
+      )}
+
+      {/* ── SUNAT / NUBEFACT ── */}
+      {tab === 'sunat' && (
+        <div style={{maxWidth:600}}>
+          {/* Estado actual */}
+          <div className="card" style={{marginBottom:16}}>
+            <div className="card-title">Estado de Facturación Electrónica</div>
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--gray-100)',marginBottom:16}}>
+              <div style={{width:14,height:14,borderRadius:'50%',background:sunatActivo?'var(--success)':'var(--gray-300)',boxShadow:sunatActivo?'0 0 8px var(--success)':'none'}}/>
+              <span style={{fontWeight:700,fontSize:15,color:sunatActivo?'var(--success)':'var(--gray-500)'}}>
+                {sunatActivo ? '✅ Nubefact activo — emitiendo a SUNAT' : 'No configurado — funcionando sin SUNAT'}
+              </span>
+            </div>
+            <div style={{fontSize:13,color:'var(--gray-600)',lineHeight:1.8}}>
+              {sunatActivo
+                ? 'Las boletas y facturas se envían automáticamente a SUNAT al cobrar.'
+                : 'Para activar la facturación electrónica agrega NUBEFACT_TOKEN en Railway.'}
+            </div>
+          </div>
+
+          {/* Instrucciones */}
+          <div className="card" style={{marginBottom:16}}>
+            <div className="card-title">Cómo activar Nubefact</div>
+            <div style={{fontSize:13,lineHeight:2,color:'var(--gray-700)'}}>
+              <div><strong>1.</strong> Regístrate en <a href="https://nubefact.com" target="_blank" rel="noreferrer" style={{color:'var(--info)'}}>nubefact.com</a> (~S/29/mes)</div>
+              <div><strong>2.</strong> Ve a <strong>Configuración → API</strong> y copia tu token</div>
+              <div><strong>3.</strong> En Railway → backend → Variables agrega:</div>
+              <div style={{background:'var(--gray-100)',borderRadius:6,padding:'10px 14px',fontFamily:'monospace',fontSize:12,margin:'8px 0',lineHeight:2}}>
+                NUBEFACT_TOKEN = tu_token_aqui<br/>
+                NUBEFACT_RUC = ruc_del_negocio
+              </div>
+              <div><strong>4.</strong> Railway redespliega automáticamente (~1 min)</div>
+              <div><strong>5.</strong> Vuelve aquí — el estado cambiará a 🟢 Activo</div>
+              <div><strong>6.</strong> Haz una boleta de prueba en modo DEMO primero</div>
+            </div>
+          </div>
+
+          {/* Modo demo/producción */}
+          <div className="card">
+            <div className="card-title">Modo de emisión</div>
+            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
+              Cambia entre modo prueba y producción. En DEMO los comprobantes no tienen valor legal.
+            </div>
+            <div style={{display:'flex',gap:12}}>
+              {['demo','produccion'].map(m => (
+                <label key={m} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'12px 16px',borderRadius:'var(--radius-sm)',border:`2px solid ${(form.nubefact?.modo||'demo')===m?'var(--primary)':'var(--gray-200)'}`,flex:1}}>
+                  <input type="radio" name="nubefact_modo" value={m}
+                    checked={(form.nubefact?.modo||'demo')===m}
+                    onChange={()=>setForm(f=>({...f,nubefact:{...f.nubefact,modo:m}}))}/>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>
+                      {m==='demo'?'⚠️ Demo':'✅ Producción'}
+                    </div>
+                    <div style={{fontSize:11,color:'var(--gray-400)'}}>
+                      {m==='demo'?'Pruebas — sin valor legal':'Comprobantes reales SUNAT'}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div style={{marginTop:16}}>
+              {ok && <div style={{background:'#E8F5E9',color:'var(--success)',border:'1px solid #C8E6C9',borderRadius:'var(--radius-sm)',padding:'10px 16px',marginBottom:12,fontWeight:600}}>✅ Guardado</div>}
+              <button type="button" className="btn btn-primary" disabled={guardando}
+                onClick={async()=>{setGuardando(true);try{await guardarConfig(form);setOk(true);setTimeout(()=>setOk(false),3000)}catch{}finally{setGuardando(false)}}}>
+                {guardando?'Guardando...':'Guardar modo'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── BACKUPS ── */}
