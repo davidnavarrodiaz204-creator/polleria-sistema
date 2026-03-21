@@ -19,6 +19,13 @@ export default function Configuracion() {
   const [ok, setOk] = useState(false)
   const [tab, setTab] = useState('negocio')
 
+  // Sincronizar form cuando llega la config real del servidor
+  useEffect(() => {
+    if (config && config._id) {
+      setForm({ ...config })
+    }
+  }, [config._id])
+
   // Backups
   const [backups, setBackups] = useState([])
   const [creandoBk, setCreandoBk] = useState(false)
