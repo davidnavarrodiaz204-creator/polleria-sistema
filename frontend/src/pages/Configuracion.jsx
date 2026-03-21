@@ -99,7 +99,8 @@ export default function Configuracion() {
     { k: 'apariencia', l: 'Apariencia' },
     { k: 'modulos',    l: 'Módulos' },
     { k: 'backup',     l: 'Backups' },
-    { k: 'reset',      l: '🔄 Reset' },
+    // { k: 'sunat', l: '🧾 SUNAT' },     // activar cuando el cliente tenga Nubefact
+    // { k: 'reset', l: '🔄 Reset' },      // activar solo cuando se necesite
   ]
 
   return (
@@ -195,6 +196,66 @@ export default function Configuracion() {
               <input className="form-input" value={form.direccion || ''} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">Email</label>
               <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+
+            {/* ── WhatsApp CallMeBot ── */}
+            <div style={{borderTop:'1px solid var(--gray-200)',marginTop:20,paddingTop:20}}>
+              <div className="card-title" style={{marginBottom:4}}>💬 WhatsApp (CallMeBot)</div>
+              <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14,lineHeight:1.7}}>
+                Configura tu número y API key para enviar mensajes a tus clientes.
+                Si ya tienes <code>CALLMEBOT_APIKEY</code> en Railway, ese tiene prioridad.
+              </div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Tu número WhatsApp</label>
+                  <input className="form-input"
+                    value={form.whatsapp?.numero || ''}
+                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, numero:e.target.value}})}
+                    placeholder="51987654321" maxLength={15}/>
+                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Con código de país: 51 + número</div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">CallMeBot API Key</label>
+                  <input className="form-input"
+                    value={form.whatsapp?.apikey || ''}
+                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, apikey:e.target.value}})}
+                    placeholder="123456" type="password"/>
+                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>
+                    <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer"
+                      style={{color:'var(--info)'}}>¿Cómo obtener tu API key? →</a>
+                  </div>
+                </div>
+              </div>
+              <div style={{fontSize:12,color:'var(--gray-500)',background:'var(--gray-50)',padding:'8px 12px',borderRadius:'var(--radius-sm)'}}>
+                <strong>Pasos:</strong> 1) Guarda +34 644 61 91 29 en WhatsApp
+                &nbsp;2) Envíale: <code>I allow callmebot to send me messages</code>
+                &nbsp;3) Recibirás tu API key — pégala arriba
+              </div>
+            </div>
+
+            {/* ── Series de comprobantes ── */}
+            <div style={{borderTop:'1px solid var(--gray-200)',marginTop:20,paddingTop:20}}>
+              <div className="card-title" style={{marginBottom:4}}>🧾 Series de comprobantes</div>
+              <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
+                Configura con tu contador. Por defecto: T001 tickets, B001 boletas, F001 facturas.
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
+                {[
+                  {label:'Serie Tickets',       key:'serieTicket',  default:'T001'},
+                  {label:'Serie Boletas',        key:'serieBoleta',  default:'B001'},
+                  {label:'Serie Facturas',       key:'serieFactura', default:'F001'},
+                  {label:'Serie Notas Crédito',  key:'serieNC',      default:'BC01'},
+                ].map(s => (
+                  <div key={s.key} className="form-group" style={{margin:0}}>
+                    <label className="form-label">{s.label}</label>
+                    <input className="form-input" style={{textTransform:'uppercase',fontFamily:'monospace'}}
+                      value={form[s.key] || s.default}
+                      onChange={e => setForm(f => ({...f, [s.key]:e.target.value.toUpperCase()}))}
+                      maxLength={4} placeholder={s.default}/>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -221,13 +282,9 @@ export default function Configuracion() {
             }}>
               <span style={{
                 fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800,
-                color: form.colorTexto || '#212121',
-                display:'flex', alignItems:'center', gap:8
+                color: form.colorTexto || '#212121'
               }}>
-                {form.logo?.startsWith('data:')
-                  ? <img src={form.logo} alt="logo" style={{width:28,height:28,objectFit:'contain',borderRadius:4}}/>
-                  : (form.logo || '🍗')
-                } {form.nombre || 'Mi Pollería'}
+                {form.logo || '🍗'} {form.nombre || 'Mi Pollería'}
               </span>
             </div>
           </div>
