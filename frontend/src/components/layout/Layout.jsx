@@ -48,7 +48,14 @@ export default function Layout() {
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
-          <div className="logo-icon">{config.logo || '🍗'}</div>
+          <div className="logo-icon" style={{overflow:'hidden',borderRadius:8}}>
+            {config.logo?.startsWith('data:') ? (
+              <img src={config.logo} alt="logo"
+                style={{width:36,height:36,objectFit:'cover',borderRadius:8,display:'block'}}/>
+            ) : (
+              config.logo || '🍗'
+            )}
+          </div>
           <div>
             <div className="logo-name">{config.nombre || 'PollerOS'}</div>
             <div className="logo-sub">Sistema de Restaurante</div>

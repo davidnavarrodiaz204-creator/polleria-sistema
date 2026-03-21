@@ -21,26 +21,6 @@ export default function Configuracion() {
 
   // Backups
   const [backups, setBackups] = useState([])
-  const [estadoNubefact, setEstadoNubefact] = useState(null)
-
-  // Reset del sistema
-  const [preview, setPreview]         = useState(null)
-  const [confirmarReset, setConfirmar] = useState('')
-  const [resetClientes, setResetCli]  = useState(false)
-  const [reseteando, setReseteando]   = useState(false)
-  const [resetOk, setResetOk]         = useState(null)
-
-  useEffect(() => {
-    if (tab === 'reset') {
-      api.get('/reset/preview').then(r => setPreview(r.data)).catch(() => {})
-    }
-  }, [tab])
-
-  useEffect(() => {
-    if (tab === 'sunat') {
-      api.get('/facturacion/estado').then(r => setEstadoNubefact(r.data)).catch(() => {})
-    }
-  }, [tab])
   const [creandoBk, setCreandoBk] = useState(false)
   const [msgBk, setMsgBk] = useState('')
 
@@ -118,9 +98,7 @@ export default function Configuracion() {
     { k: 'negocio',    l: 'Negocio' },
     { k: 'apariencia', l: 'Apariencia' },
     { k: 'modulos',    l: 'Módulos' },
-    { k: 'sunat',      l: '🧾 SUNAT' },
     { k: 'backup',     l: 'Backups' },
-    // { k: 'reset', l: '🔄 Reset' },  // activar cuando se necesite
   ]
 
   return (
@@ -151,8 +129,61 @@ export default function Configuracion() {
               <input className="form-input" value={form.nombre || ''} onChange={e => setForm({ ...form, nombre: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">Slogan</label>
               <input className="form-input" value={form.slogan || ''} onChange={e => setForm({ ...form, slogan: e.target.value })} /></div>
-            <div className="form-group"><label className="form-label">Emoji / Ícono</label>
-              <input className="form-input" value={form.logo || ''} maxLength={4} onChange={e => setForm({ ...form, logo: e.target.value })} /></div>
+            <div className="form-group">
+              <label className="form-label">Logo del negocio</label>
+              <div style={{display:'flex',gap:12,alignItems:'flex-start',flexWrap:'wrap'}}>
+                {/* Vista previa */}
+                <div style={{
+                  width:72,height:72,borderRadius:12,border:'2px dashed var(--gray-300)',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  background:'var(--gray-50)',flexShrink:0,overflow:'hidden'
+                }}>
+                  {form.logo && form.logo.startsWith('data:') ? (
+                    <img src={form.logo} alt="logo" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                  ) : (
+                    <span style={{fontSize:36}}>{form.logo || '🍗'}</span>
+                  )}
+                </div>
+                <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
+                  {/* Subir imagen */}
+                  <label style={{
+                    display:'inline-flex',alignItems:'center',gap:8,padding:'8px 14px',
+                    background:'var(--gray-100)',border:'1px solid var(--gray-300)',
+                    borderRadius:'var(--radius-sm)',cursor:'pointer',fontSize:13,fontWeight:600,
+                    width:'fit-content'
+                  }}>
+                    📷 Subir imagen
+                    <input type="file" accept="image/*" style={{display:'none'}}
+                      onChange={e => {
+                        const file = e.target.files[0]
+                        if (!file) return
+                        if (file.size > 500000) return alert('La imagen debe pesar menos de 500KB')
+                        const reader = new FileReader()
+                        reader.onload = ev => setForm(f => ({ ...f, logo: ev.target.result }))
+                        reader.readAsDataURL(file)
+                      }}
+                    />
+                  </label>
+                  {/* O usar emoji */}
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:12,color:'var(--gray-500)'}}>O escribe un emoji:</span>
+                    <input className="form-input" style={{width:70,textAlign:'center',fontSize:20}}
+                      value={form.logo?.startsWith('data:') ? '' : (form.logo || '')}
+                      maxLength={4} placeholder="🍗"
+                      onChange={e => setForm(f => ({ ...f, logo: e.target.value }))}/>
+                  </div>
+                  {form.logo?.startsWith('data:') && (
+                    <button type="button" className="btn btn-ghost btn-sm" style={{width:'fit-content'}}
+                      onClick={() => setForm(f => ({ ...f, logo: '🍗' }))}>
+                      ✕ Quitar imagen
+                    </button>
+                  )}
+                  <div style={{fontSize:11,color:'var(--gray-400)'}}>
+                    Formatos: JPG, PNG, WebP · Máximo 500KB
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="grid-2">
               <div className="form-group"><label className="form-label">RUC</label>
                 <input className="form-input" value={form.ruc || ''} placeholder="20123456789" onChange={e => setForm({ ...form, ruc: e.target.value })} /></div>
@@ -163,40 +194,6 @@ export default function Configuracion() {
               <input className="form-input" value={form.direccion || ''} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">Email</label>
               <input className="form-input" type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-
-            {/* WhatsApp CallMeBot */}
-            <div style={{borderTop:'1px solid var(--gray-200)',marginTop:16,paddingTop:16}}>
-              <div className="card-title" style={{marginBottom:12}}>💬 WhatsApp (CallMeBot)</div>
-              <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14,lineHeight:1.7}}>
-              
-              </div>
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Tu número WhatsApp</label>
-                  <input className="form-input"
-                    value={form.whatsapp?.numero || ''}
-                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, numero:e.target.value}})}
-                    placeholder="51987654321" maxLength={15}/>
-                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Con código de país: 51 + número</div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">CallMeBot API Key</label>
-                  <input className="form-input"
-                    value={form.whatsapp?.apikey || ''}
-                    onChange={e => setForm({...form, whatsapp:{...form.whatsapp, apikey:e.target.value}})}
-                    placeholder="123456" type="password"/>
-                  <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>
-                    <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer" style={{color:'var(--info)'}}>
-                     
-                    </a>
-                  </div>
-                </div>
-              </div>
-              <div style={{fontSize:12,color:'var(--gray-500)',background:'var(--gray-50)',padding:'8px 12px',borderRadius:'var(--radius-sm)'}}>
-               
-              </div>
-            </div>
-
           </div>
         )}
 
@@ -267,92 +264,6 @@ export default function Configuracion() {
       </form>
 
       {/* BACKUPS */}
-      {/* ── TAB SUNAT / FACTURACIÓN ELECTRÓNICA ── */}
-      {tab === 'sunat' && (
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:800}}>
-
-          {/* Estado actual */}
-          <div className="card">
-            <div className="card-title">Estado de Facturación Electrónica</div>
-            {estadoNubefact ? (
-              <>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-                  <div style={{width:12,height:12,borderRadius:'50%',background:estadoNubefact.configurado?'var(--success)':'var(--gray-300)'}}/>
-                  <span style={{fontWeight:700,color:estadoNubefact.configurado?'var(--success)':'var(--gray-500)'}}>
-                    {estadoNubefact.configurado ? 'Nubefact Activo' : 'No configurado'}
-                  </span>
-                </div>
-                {estadoNubefact.configurado && (
-                  <div style={{background:estadoNubefact.modoActual==='produccion'?'#E8F5E9':'#FFF8E1',borderRadius:'var(--radius-sm)',padding:'10px 14px',fontSize:13,marginBottom:12}}>
-                    <strong>Modo:</strong> {estadoNubefact.modoActual === 'produccion' ? '✅ PRODUCCIÓN — Comprobantes reales SUNAT' : '⚠️ DEMO — Sin valor legal (pruebas)'}
-                  </div>
-                )}
-                <div style={{fontSize:13,color:'var(--gray-600)',lineHeight:1.8}}>
-                  {estadoNubefact.mensaje}
-                </div>
-              </>
-            ) : (
-              <div style={{color:'var(--gray-400)',fontSize:13}}>Cargando estado...</div>
-            )}
-          </div>
-
-          {/* Series de comprobantes */}
-          <div className="card">
-            <div className="card-title">Series de Comprobantes</div>
-            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
-              Configura con tu contador. Por defecto: B001 boletas, F001 facturas.
-            </div>
-            {[
-              {label:'Serie Tickets', key:'serieTicket', default:'T001', desc:'Sin valor SUNAT'},
-              {label:'Serie Boletas', key:'serieBoleta', default:'B001', desc:'Personas naturales'},
-              {label:'Serie Facturas', key:'serieFactura', default:'F001', desc:'Empresas con RUC'},
-              {label:'Serie Notas Crédito', key:'serieNC', default:'BC01', desc:'Anulaciones'},
-            ].map(s => (
-              <div key={s.key} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                <input className="form-input" style={{width:80,textTransform:'uppercase'}}
-                  value={form[s.key]||s.default}
-                  onChange={e=>setForm(f=>({...f,[s.key]:e.target.value.toUpperCase()}))}
-                  maxLength={4}/>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600}}>{s.label}</div>
-                  <div style={{fontSize:11,color:'var(--gray-400)'}}>{s.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Datos SUNAT del negocio */}
-          <div className="card">
-            <div className="card-title">Datos SUNAT del Negocio</div>
-            <div style={{fontSize:13,color:'var(--gray-500)',marginBottom:14}}>
-              Estos datos aparecen en boletas y facturas.
-            </div>
-            <div className="form-group">
-              <label className="form-label">RUC del negocio</label>
-              <input className="form-input" value={form.ruc||''} maxLength={11}
-                onChange={e=>setForm(f=>({...f,ruc:e.target.value}))}
-                placeholder="20123456789"/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Razón Social (SUNAT)</label>
-              <input className="form-input" value={form.razonSocial||''}
-                onChange={e=>setForm(f=>({...f,razonSocial:e.target.value}))}
-                placeholder="EMPRESA S.A.C."/>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Modo Nubefact</label>
-              <select className="form-select"
-                value={form.nubefact?.modo||'demo'}
-                onChange={e=>setForm(f=>({...f,nubefact:{...f.nubefact,modo:e.target.value}}))}>
-                <option value="demo">⚠️ Demo (pruebas — sin valor legal)</option>
-                <option value="produccion">✅ Producción (comprobantes reales SUNAT)</option>
-              </select>
-            </div>
-          </div>
-
-        </div>
-      )}
-
       {tab === 'backup' && (
         <div>
           <div className="card" style={{ maxWidth: 600, marginBottom: 16 }}>
@@ -419,120 +330,6 @@ export default function Configuracion() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* ── TAB RESET ── */}
-      {tab === 'reset' && (
-        <div style={{maxWidth:600}}>
-
-          {resetOk ? (
-            <div className="card" style={{textAlign:'center',padding:40,borderLeft:'4px solid var(--success)'}}>
-              <div style={{fontSize:48}}>✅</div>
-              <div style={{fontSize:22,fontWeight:800,color:'var(--success)',marginTop:12}}>Sistema reseteado</div>
-              <div style={{fontSize:14,color:'var(--gray-600)',marginTop:8,lineHeight:1.8}}>
-                Se borraron: <strong>{resetOk.borrado.pedidos}</strong> pedidos,&nbsp;
-                <strong>{resetOk.borrado.cajas}</strong> cajas,&nbsp;
-                <strong>{resetOk.borrado.egresos}</strong> egresos
-                {resetOk.borrado.clientes > 0 && `, ${resetOk.borrado.clientes} clientes`}
-              </div>
-              <div style={{fontSize:13,color:'var(--gray-500)',marginTop:8}}>
-                Se conservaron: usuarios, mesas, carta/menú
-              </div>
-              <button className="btn btn-primary" style={{marginTop:20}}
-                onClick={() => { setResetOk(null); setConfirmar(''); setPreview(null)
-                  api.get('/reset/preview').then(r=>setPreview(r.data)).catch(()=>{}) }}>
-                Volver
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Advertencia */}
-              <div style={{background:'#FFF3CD',border:'1px solid #FFE082',borderRadius:'var(--radius-sm)',padding:'14px 16px',marginBottom:16,fontSize:13,lineHeight:1.8}}>
-                ⚠️ <strong>Esta acción es irreversible.</strong> Se borrará toda la data de ventas.
-                Se crea un backup automático antes de ejecutar.
-              </div>
-
-              {/* Preview */}
-              {preview && (
-                <div className="card" style={{marginBottom:16}}>
-                  <div className="card-title">Vista previa — qué se va a borrar</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:'var(--danger)',marginBottom:8,textTransform:'uppercase'}}>Se borra ❌</div>
-                      {Object.entries(preview.seBorra).map(([k,v])=>(
-                        <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--gray-100)',fontSize:13}}>
-                          <span style={{textTransform:'capitalize'}}>{k}</span>
-                          <strong style={{color:v>0?'var(--danger)':'var(--gray-400)'}}>{v}</strong>
-                        </div>
-                      ))}
-                      <div style={{padding:'5px 0',fontSize:13,color:'var(--gray-500)'}}>
-                        Correlativo actual: <strong>#{preview.correlativoActual}</strong> → reinicia en #1
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:'var(--success)',marginBottom:8,textTransform:'uppercase'}}>Se conserva ✅</div>
-                      {Object.entries(preview.seConserva).map(([k,v])=>(
-                        <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--gray-100)',fontSize:13}}>
-                          <span style={{textTransform:'capitalize'}}>{k === 'productos' ? 'carta/menú' : k}</span>
-                          <strong style={{color:'var(--success)'}}>{v}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Opción de borrar clientes también */}
-                  <label style={{display:'flex',alignItems:'center',gap:10,fontSize:13,cursor:'pointer',padding:'10px 0',borderTop:'1px solid var(--gray-200)'}}>
-                    <input type="checkbox" checked={resetClientes}
-                      onChange={e=>setResetCli(e.target.checked)}/>
-                    <div>
-                      <div style={{fontWeight:600}}>También borrar clientes ({preview.seConserva.clientes})</div>
-                      <div style={{fontSize:11,color:'var(--gray-500)'}}>Por defecto se conservan. Marca esto solo si quieres entregar el sistema completamente vacío.</div>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              {/* Confirmación */}
-              <div className="card">
-                <div className="card-title" style={{color:'var(--danger)'}}>⚠️ Confirmar reset</div>
-                <div style={{fontSize:13,color:'var(--gray-600)',marginBottom:12}}>
-                  Para ejecutar el reset escribe exactamente:&nbsp;
-                  <code style={{background:'var(--gray-100)',padding:'2px 6px',borderRadius:4,fontWeight:700}}>
-                    RESETEAR SISTEMA
-                  </code>
-                </div>
-                <input className="form-input" style={{marginBottom:12,fontFamily:'monospace'}}
-                  placeholder="Escribe: RESETEAR SISTEMA"
-                  value={confirmarReset}
-                  onChange={e=>setConfirmar(e.target.value)}/>
-                <button
-                  className="btn"
-                  style={{
-                    width:'100%', padding:14, fontSize:15, fontWeight:800,
-                    background: confirmarReset==='RESETEAR SISTEMA' ? 'var(--danger)' : 'var(--gray-200)',
-                    color: confirmarReset==='RESETEAR SISTEMA' ? 'white' : 'var(--gray-500)',
-                    border:'none', borderRadius:'var(--radius)', cursor: confirmarReset==='RESETEAR SISTEMA'?'pointer':'not-allowed'
-                  }}
-                  disabled={confirmarReset !== 'RESETEAR SISTEMA' || reseteando}
-                  onClick={async () => {
-                    if (!confirm('¿Estás SEGURO? Esta acción no se puede deshacer.')) return
-                    setReseteando(true)
-                    try {
-                      const { data } = await api.post('/reset/ejecutar', {
-                        confirmar: confirmarReset,
-                        resetClientes,
-                      })
-                      setResetOk(data)
-                    } catch (err) {
-                      alert(err.response?.data?.error || 'Error al resetear')
-                    } finally { setReseteando(false) }
-                  }}>
-                  {reseteando ? '⏳ Reseteando...' : '🔄 Ejecutar Reset del Sistema'}
-                </button>
-              </div>
-            </>
-          )}
         </div>
       )}
 

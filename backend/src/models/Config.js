@@ -11,7 +11,7 @@ const configSchema = new mongoose.Schema({
   slogan:        { type: String, default: 'El mejor pollo del barrio' },
   colorPrimario: { type: String, default: '#F5C518' },
   colorTexto:    { type: String, default: '#212121' },
-  logo:          { type: String, default: '🍗' },
+  logo:          { type: String, default: '🍗' },  // emoji o base64 de imagen (max ~500KB)
   direccion:     { type: String, default: '' },
   telefono:      { type: String, default: '' },
 
