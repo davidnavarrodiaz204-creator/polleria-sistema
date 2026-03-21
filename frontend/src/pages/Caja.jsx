@@ -46,22 +46,17 @@ export default function Caja() {
   })
   const [consultando, setConsultando] = useState(false)
   const [msgDoc, setMsgDoc]           = useState('')
+  const [pedidosPagados, setPedidosPagados] = useState([])
 
   const cargar = useCallback(() => {
     api.get('/caja/hoy').then(r => setCaja(r.data)).catch(() => {})
     api.get('/egresos').then(r => setEgresos(r.data)).catch(() => {})
-    const hoy = new Date().toISOString().split('T')[0]
-    api.get('/pedidos/historial?desde=' + hoy + '&hasta=' + hoy + '&limit=500')
-      .then(r => {
-        setPedidos(r.data.filter(p => !p.pagado && !['cancelado','entregado'].includes(p.estado)))
-        setPedidosPagados(r.data.filter(p => p.pagado))
-      })
-      .catch(() => {
-        api.get('/pedidos').then(r => {
-          setPedidos(r.data.filter(p => !p.pagado && !['cancelado'].includes(p.estado)))
-          setPedidosPagados(r.data.filter(p => p.pagado))
-        }).catch(() => {})
-      })
+    // Cargar todos los pedidos: pendientes para cobrar + pagados para estado caja
+    api.get('/pedidos').then(r => {
+      const todos = r.data
+      setPedidos(todos.filter(p => !p.pagado && !['cancelado','entregado'].includes(p.estado)))
+      setPedidosPagados(todos.filter(p => p.pagado))
+    }).catch(() => {})
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
@@ -142,17 +137,14 @@ export default function Caja() {
           aceptaPromo: cobro.aceptaPromo,
         }
         if (cobro.clienteId) {
-          // Cliente ya existe → solo actualizar sus datos
           await api.put('/clientes/' + cobro.clienteId, datosCliente).catch(() => {})
         } else {
-          // Cliente nuevo → crear
           try {
             const { data: cl } = await api.post('/clientes', datosCliente)
             clienteId = cl._id
           } catch(e) {
-            // Si ya existe por race condition, buscar su ID
             if (e.response?.status === 400) {
-              const { data: lista } = await api.get('/clientes?q=' + cobro.numDoc).catch(() => ({ data: [] }))
+              const { data: lista } = await api.get('/clientes?q=' + cobro.numDoc).catch(() => ({ data:[] }))
               if (lista?.[0]) clienteId = lista[0]._id
             }
           }
@@ -310,13 +302,14 @@ export default function Caja() {
               <div className="card-title">Estado de Caja — Hoy</div>
               {[
                 { label:'Apertura con',    val:caja.montoApertura,  color:'var(--gray-700)' },
-                { label:'Ventas efectivo', val:caja.totalEfectivo,  color:'var(--success)' },
-                { label:'Ventas Yape',     val:caja.totalYape,      color:'var(--info)' },
-                { label:'Ventas Plin',     val:caja.totalPlin,      color:'var(--info)' },
-                { label:'Ventas Tarjeta',  val:caja.totalTarjeta,   color:'var(--info)' },
-                { label:'Total ventas',    val:caja.totalVentas,    color:'var(--success)', bold:true },
-                { label:'Total egresos',   val:caja.totalEgresos||totalEgresos, color:'var(--danger)' },
-                { label:'Saldo en caja',   val:(caja.montoApertura||0)+(caja.totalEfectivo||0)-(caja.totalEgresos||totalEgresos), color:'var(--accent)', bold:true },
+                { label:'Ventas efectivo', val: caja.estado==='cerrada' ? caja.totalEfectivo  : pedidosPagados.filter(p=>p.metodoPago==='efectivo').reduce((s,p)=>s+p.total,0),  color:'var(--success)' },
+                { label:'Ventas Yape',     val: caja.estado==='cerrada' ? caja.totalYape      : pedidosPagados.filter(p=>p.metodoPago==='yape').reduce((s,p)=>s+p.total,0),      color:'var(--info)' },
+                { label:'Ventas Plin',     val: caja.estado==='cerrada' ? caja.totalPlin      : pedidosPagados.filter(p=>p.metodoPago==='plin').reduce((s,p)=>s+p.total,0),      color:'var(--info)' },
+                { label:'Ventas Tarjeta',  val: caja.estado==='cerrada' ? caja.totalTarjeta   : pedidosPagados.filter(p=>p.metodoPago==='tarjeta').reduce((s,p)=>s+p.total,0),   color:'var(--info)' },
+                { label:'Ventas Transf.',  val: caja.estado==='cerrada' ? (caja.totalTransferencia||0) : pedidosPagados.filter(p=>p.metodoPago==='transferencia').reduce((s,p)=>s+p.total,0), color:'var(--info)' },
+                { label:'Total ventas',    val: caja.estado==='cerrada' ? caja.totalVentas    : pedidosPagados.reduce((s,p)=>s+p.total,0), color:'var(--success)', bold:true },
+                { label:'Total egresos',   val: totalEgresos, color:'var(--danger)' },
+                { label:'Saldo en caja',   val: (caja.montoApertura||0) + (caja.estado==='cerrada' ? caja.totalEfectivo : pedidosPagados.filter(p=>p.metodoPago==='efectivo').reduce((s,p)=>s+p.total,0)) - totalEgresos, color:'var(--accent)', bold:true },
               ].map((row,i) => (
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--gray-100)' }}>
                   <span style={{ fontSize:14, fontWeight:row.bold?700:400 }}>{row.label}</span>

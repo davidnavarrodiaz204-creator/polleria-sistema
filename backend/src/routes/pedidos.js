@@ -73,12 +73,21 @@ router.get('/comprobantes', auth, async (req, res) => {
       pagado: true,
       tipoComprobante: { $in: ['boleta', 'factura', 'nota_credito'] }
     };
+    // Filtro por fecha exacta o rango desde/hasta
     if (fecha) {
       const inicio = new Date(fecha + 'T05:00:00.000Z');
       const fin    = new Date(inicio); fin.setDate(fin.getDate() + 1);
       filtro.creadoEn = { $gte: inicio, $lt: fin };
+    } else if (desde || hasta) {
+      filtro.creadoEn = {};
+      if (desde) filtro.creadoEn.$gte = new Date(desde + 'T05:00:00.000Z');
+      if (hasta) {
+        const finHasta = new Date(hasta + 'T05:00:00.000Z');
+        finHasta.setDate(finHasta.getDate() + 1);
+        filtro.creadoEn.$lt = finHasta;
+      }
     }
-    const pedidos = await Pedido.find(filtro).sort({ creadoEn: -1 }).limit(200);
+    const pedidos = await Pedido.find(filtro).sort({ creadoEn: -1 }).limit(500);
     res.json(pedidos);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
