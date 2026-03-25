@@ -20,8 +20,12 @@ export default function Mesas() {
   }, [])
 
   const cambiarEstado = async (mesa) => {
-    const sig = { libre:'ocupada', ocupada:'lista', lista:'libre' }
-    await api.put(`/mesas/${mesa._id}`, { estado: sig[mesa.estado] || 'libre' })
+    if (mesa.estado === 'lista') {
+      return alert('⚠️ Esta mesa tiene pedidos por cobrar.\nVe a Caja → pestaña Cobrar para procesarla.')
+    }
+    const sig = { libre:'ocupada', ocupada:'lista' }
+    if (!sig[mesa.estado]) return
+    await api.put(`/mesas/${mesa._id}`, { estado: sig[mesa.estado] })
     cargar()
   }
 

@@ -207,6 +207,11 @@ export default function Caja() {
           <div className="page-title">Caja</div>
           <div className="page-sub">
             {caja ? (caja.estado==='abierta' ? 'Caja abierta hoy' : 'Caja cerrada') : 'Sin caja hoy'}
+            {pedidos.length > 0 && (
+              <span style={{marginLeft:10,background:'var(--danger)',color:'white',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:700}}>
+                {pedidos.length} por cobrar
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>

@@ -10,10 +10,17 @@ const Cliente = require('../models/Cliente');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 
-// GET /api/pedidos — pedidos activos (sin pagar, no cancelados)
+// GET /api/pedidos — pedidos de HOY (activos + pagados)
+// Importante: solo trae de hoy para que Caja calcule ventas correctamente
 router.get('/', auth, async (_req, res) => {
   try {
-    const pedidos = await Pedido.find().sort({ creadoEn: -1 }).limit(100);
+    const inicioHoy = new Date();
+    inicioHoy.setUTCHours(5, 0, 0, 0); // 00:00 hora Perú (UTC-5)
+    const finHoy = new Date(inicioHoy);
+    finHoy.setDate(finHoy.getDate() + 1);
+    const pedidos = await Pedido.find({
+      creadoEn: { $gte: inicioHoy, $lt: finHoy }
+    }).sort({ creadoEn: -1 }).limit(500);
     res.json(pedidos);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

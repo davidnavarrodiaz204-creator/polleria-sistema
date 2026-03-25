@@ -48,6 +48,7 @@ export default function Cocina() {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16}}>
           {pedidos.map(p => {
             const mins = minutos(p.creadoEn)
+            const colorTimer = mins >= 20 ? 'var(--danger)' : mins >= 10 ? 'var(--warning)' : 'var(--success)'
             const urgente = mins >= 15
             const advertencia = mins >= 8 && mins < 15
             return (
@@ -74,6 +75,12 @@ export default function Cocina() {
                   {p.nota && <div style={{marginTop:6,fontSize:12,color:'var(--gray-600)',background:'var(--gray-100)',padding:'4px 8px',borderRadius:6}}>📝 {p.nota}</div>}
                 </div>
                 <div style={{padding:'8px 14px',display:'flex',gap:8,borderTop:'1px solid var(--gray-100)'}}>
+                  {p.estado === 'en_cocina' && (
+                    <button className="btn btn-warning" style={{flex:1,fontSize:13,padding:'8px'}}
+                      onClick={async()=>{ await api.put(`/pedidos/${p._id}`,{estado:'preparando'}); cargar() }}>
+                      👨‍🍳 Preparando
+                    </button>
+                  )}
                   <button className="btn btn-success" style={{flex:1,fontSize:13,padding:'8px'}} onClick={()=>marcarListo(p._id)}>✅ Listo</button>
                   <button className="btn btn-ghost btn-sm" onClick={()=>imprimirTicketCocina(p)}>🖨️</button>
                   <button className="btn btn-danger btn-sm" onClick={()=>cancelar(p._id)}>✕</button>

@@ -55,6 +55,9 @@ export default function Dashboard() {
     weekday: 'long', day: 'numeric', month: 'long'
   })
 
+  const hora = new Date().getHours()
+  const saludo = hora < 12 ? 'Buenos días 👋' : hora < 19 ? 'Buenas tardes 👋' : 'Buenas noches 🌙'
+
   const horaActualizacion = ultimaAct
     ? ultimaAct.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '—'
@@ -72,7 +75,7 @@ export default function Dashboard() {
     <div className="page">
       <div className="page-header">
         <div>
-          <div className="page-title">Buenos días 👋</div>
+          <div className="page-title">{saludo}</div>
           <div className="page-sub" style={{textTransform:'capitalize'}}>{hoy}</div>
         </div>
         {/* Indicador de tiempo real */}
