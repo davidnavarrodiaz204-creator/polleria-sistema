@@ -43,6 +43,9 @@ export default function Caja() {
     numDoc:'', nombre:'', razonSocial:'', direccion:'',
     celular:'', aceptaPromo:true, clienteId:null,
     efectivoRecibido:0,
+    // Pago mixto
+    pagoMixto: false,
+    pagos: [], // [{metodo, monto}]
   })
   const [consultando, setConsultando] = useState(false)
   const [msgDoc, setMsgDoc]           = useState('')
@@ -61,9 +64,13 @@ export default function Caja() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const vuelto = cobro.metodoPago === 'efectivo'
-    ? Math.max(0, Number(cobro.efectivoRecibido) - (modalCobro?.total || 0))
-    : 0
+  const totalPagadoMixto = cobro.pagos.reduce((s, p) => s + (Number(p.monto)||0), 0)
+  const efectivoEnMixto  = cobro.pagos.find(p => p.metodo === 'efectivo')
+  const vuelto = cobro.pagoMixto
+    ? Math.max(0, (Number(efectivoEnMixto?.monto)||0) - Math.max(0, (modalCobro?.total||0) - cobro.pagos.filter(p=>p.metodo!=='efectivo').reduce((s,p)=>s+(Number(p.monto)||0),0)))
+    : cobro.metodoPago === 'efectivo'
+      ? Math.max(0, Number(cobro.efectivoRecibido) - (modalCobro?.total || 0))
+      : 0
 
   // Consultar RUC/DNI automáticamente
   const consultarDoc = async (num) => {
@@ -151,15 +158,21 @@ export default function Caja() {
         }
       }
 
+      // Calcular método principal para reportes
+      const metodoPrincipal = cobro.pagoMixto
+        ? cobro.pagos.sort((a,b)=>(Number(b.monto)||0)-(Number(a.monto)||0))[0]?.metodo || 'efectivo'
+        : cobro.metodoPago
+
       // Marcar pedido como pagado
       await api.put('/pedidos/' + modalCobro._id, {
         pagado: true,
-        metodoPago: cobro.metodoPago,
+        metodoPago:      metodoPrincipal,
+        pagosMixtos:     cobro.pagoMixto ? cobro.pagos : null,
         tipoComprobante: cobro.tipoComprobante,
-        estado: 'entregado',
+        estado:          'entregado',
         clienteId,
-        clienteNombre: cobro.nombre,
-        clienteDoc:    cobro.numDoc,
+        clienteNombre:   cobro.nombre,
+        clienteDoc:      cobro.numDoc,
       })
 
       // Liberar mesa
@@ -182,6 +195,23 @@ export default function Caja() {
     } catch (err) { alert(err.response?.data?.error || 'Error al cobrar') }
   }
 
+  // Helpers pago mixto
+  const agregarPago = () => {
+    const total = modalCobro?.total || 0
+    const yaAsignado = cobro.pagos.reduce((s,p) => s+(Number(p.monto)||0), 0)
+    const resto = Math.max(0, total - yaAsignado)
+    setCobro(prev => ({ ...prev, pagos: [...prev.pagos, { metodo:'efectivo', monto: resto }] }))
+  }
+
+  const actualizarPago = (i, campo, valor) => {
+    const nuevos = cobro.pagos.map((p, idx) => idx === i ? { ...p, [campo]: valor } : p)
+    setCobro(prev => ({ ...prev, pagos: nuevos }))
+  }
+
+  const quitarPago = (i) => {
+    setCobro(prev => ({ ...prev, pagos: prev.pagos.filter((_, idx) => idx !== i) }))
+  }
+
   const eliminarEgreso = async (id) => {
     if (!confirm('¿Eliminar egreso?')) return
     await api.delete('/egresos/' + id); cargar()
@@ -195,6 +225,8 @@ export default function Caja() {
       numDoc:'', nombre:'', razonSocial:'', direccion:'',
       celular:'', aceptaPromo:true, clienteId:null,
       efectivoRecibido: p.total,
+      pagoMixto: false,
+      pagos: [],
     })
   }
 
@@ -207,11 +239,6 @@ export default function Caja() {
           <div className="page-title">Caja</div>
           <div className="page-sub">
             {caja ? (caja.estado==='abierta' ? 'Caja abierta hoy' : 'Caja cerrada') : 'Sin caja hoy'}
-            {pedidos.length > 0 && (
-              <span style={{marginLeft:10,background:'var(--danger)',color:'white',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:700}}>
-                {pedidos.length} por cobrar
-              </span>
-            )}
           </div>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -471,46 +498,130 @@ export default function Caja() {
               </div>
             </div>
 
-            {/* Método de pago */}
-            <div className="form-group">
-              <label className="form-label">Método de pago</label>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
-                {METODOS.map(m => (
-                  <button key={m.value} type="button"
-                    onClick={()=>setCobro(prev=>({...prev, metodoPago:m.value, efectivoRecibido:m.value==='efectivo'?modalCobro.total:0}))}
-                    style={{ padding:'8px 4px', borderRadius:'var(--radius-sm)', fontSize:12, fontWeight:600,
-                      cursor:'pointer', border:'2px solid',
-                      borderColor: cobro.metodoPago===m.value ? 'var(--primary)' : 'var(--gray-300)',
-                      background:  cobro.metodoPago===m.value ? 'var(--primary)' : 'white',
-                    }}>{m.label}</button>
-                ))}
-              </div>
+            {/* Toggle pago mixto */}
+            <div style={{marginBottom:12}}>
+              <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',
+                background: cobro.pagoMixto ? '#EFF6FF' : 'var(--gray-50)',
+                border: `2px solid ${cobro.pagoMixto ? 'var(--info)' : 'var(--gray-200)'}`,
+                borderRadius:'var(--radius-sm)', padding:'10px 14px', transition:'all .2s'}}>
+                <input type="checkbox" checked={cobro.pagoMixto}
+                  onChange={e => {
+                    const activo = e.target.checked
+                    setCobro(prev => ({
+                      ...prev,
+                      pagoMixto: activo,
+                      pagos: activo ? [
+                        { metodo:'efectivo', monto: modalCobro?.total || 0 }
+                      ] : [],
+                    }))
+                  }}/>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>💳 Pago mixto</div>
+                  <div style={{fontSize:11,color:'var(--gray-500)'}}>Divide el pago entre varios métodos (ej: efectivo + Yape)</div>
+                </div>
+              </label>
             </div>
 
-            {/* Efectivo y vuelto */}
-            {cobro.metodoPago==='efectivo' && (
-              <div className="grid-2">
+            {/* Pago simple */}
+            {!cobro.pagoMixto && (
+              <>
                 <div className="form-group">
-                  <label className="form-label">Efectivo recibido S/</label>
-                  <input className="form-input" type="number" step="0.50"
-                    value={cobro.efectivoRecibido}
-                    onChange={e=>setCobro(prev=>({...prev,efectivoRecibido:Number(e.target.value)}))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Vuelto S/</label>
-                  <div style={{ padding:'10px 12px', background:vuelto>0?'#E8F5E9':'var(--gray-100)',
-                    borderRadius:'var(--radius-sm)', fontFamily:'var(--font-display)',
-                    fontSize:20, fontWeight:800, color:vuelto>0?'var(--success)':'var(--gray-500)' }}>
-                    S/ {vuelto.toFixed(2)}
+                  <label className="form-label">Método de pago</label>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
+                    {METODOS.map(m => (
+                      <button key={m.value} type="button"
+                        onClick={()=>setCobro(prev=>({...prev, metodoPago:m.value, efectivoRecibido:m.value==='efectivo'?modalCobro.total:0}))}
+                        style={{ padding:'8px 4px', borderRadius:'var(--radius-sm)', fontSize:12, fontWeight:600,
+                          cursor:'pointer', border:'2px solid',
+                          borderColor: cobro.metodoPago===m.value ? 'var(--primary)' : 'var(--gray-300)',
+                          background:  cobro.metodoPago===m.value ? 'var(--primary)' : 'white',
+                        }}>{m.label}</button>
+                    ))}
                   </div>
+                </div>
+                {cobro.metodoPago==='efectivo' && (
+                  <div className="grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Efectivo recibido S/</label>
+                      <input className="form-input" type="number" step="0.50"
+                        value={cobro.efectivoRecibido}
+                        onChange={e=>setCobro(prev=>({...prev,efectivoRecibido:Number(e.target.value)}))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Vuelto S/</label>
+                      <div style={{ padding:'10px 12px', background:vuelto>0?'#E8F5E9':'var(--gray-100)',
+                        borderRadius:'var(--radius-sm)', fontFamily:'var(--font-display)',
+                        fontSize:20, fontWeight:800, color:vuelto>0?'var(--success)':'var(--gray-500)' }}>
+                        S/ {vuelto.toFixed(2)}
+                      </div>
+                </div>
+              </div>
+            )}
+              </>
+            )}
+
+            {/* Pago mixto */}
+            {cobro.pagoMixto && (
+              <div className="form-group">
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <label className="form-label" style={{margin:0}}>Pagos ({cobro.pagos.length})</label>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={agregarPago}
+                    disabled={totalPagadoMixto >= (modalCobro?.total||0)}>
+                    + Agregar método
+                  </button>
+                </div>
+
+                {cobro.pagos.map((pago, i) => (
+                  <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 120px auto',gap:8,marginBottom:8,alignItems:'center'}}>
+                    <select className="form-select" value={pago.metodo}
+                      onChange={e=>actualizarPago(i,'metodo',e.target.value)}>
+                      {METODOS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <input className="form-input" type="number" step="0.50" placeholder="S/ 0.00"
+                      value={pago.monto}
+                      onChange={e=>actualizarPago(i,'monto',e.target.value)}/>
+                    <button type="button" onClick={()=>quitarPago(i)}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'var(--danger)',fontSize:18,padding:'0 4px'}}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                {/* Resumen mixto */}
+                <div style={{background:'var(--gray-50)',borderRadius:'var(--radius-sm)',padding:'10px 14px',marginTop:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
+                    <span>Total a pagar:</span>
+                    <strong>S/ {(modalCobro?.total||0).toFixed(2)}</strong>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
+                    <span>Total asignado:</span>
+                    <strong style={{color:totalPagadoMixto>=(modalCobro?.total||0)?'var(--success)':'var(--warning)'}}>
+                      S/ {totalPagadoMixto.toFixed(2)}
+                    </strong>
+                  </div>
+                  {totalPagadoMixto < (modalCobro?.total||0) && (
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'var(--danger)',fontWeight:700}}>
+                      <span>Falta:</span>
+                      <span>S/ {((modalCobro?.total||0) - totalPagadoMixto).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {vuelto > 0 && (
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'var(--success)',fontWeight:700,marginTop:4,borderTop:'1px solid var(--gray-200)',paddingTop:4}}>
+                      <span>Vuelto efectivo:</span>
+                      <span>S/ {vuelto.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={()=>setModalCobro(null)}>Cancelar</button>
-              <button className="btn btn-primary" style={{ fontSize:15 }} onClick={cobrarPedido}>
-                Cobrar e Imprimir
+              <button className="btn btn-primary" style={{ fontSize:15 }} onClick={cobrarPedido}
+                disabled={cobro.pagoMixto && totalPagadoMixto < (modalCobro?.total||0)}>
+                {cobro.pagoMixto && totalPagadoMixto < (modalCobro?.total||0)
+                  ? `Falta S/ ${((modalCobro?.total||0)-totalPagadoMixto).toFixed(2)}`
+                  : 'Cobrar e Imprimir'}
               </button>
             </div>
           </div>
