@@ -4,6 +4,7 @@
  */
 const authService = require('../../../application/services/auth.service');
 const catchAsync = require('../../../utils/catchAsync');
+const Logger = require('../../../utils/logger');
 
 class AuthController {
   /**

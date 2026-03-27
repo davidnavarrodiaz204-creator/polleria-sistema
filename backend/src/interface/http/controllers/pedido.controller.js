@@ -4,6 +4,7 @@
 const pedidoService = require('../../../application/services/pedido.service');
 const catchAsync = require('../../../utils/catchAsync');
 const { emit } = require('../../../config/socket');
+const Mesa = require('../../../models/Mesa');
 
 class PedidoController {
   /**

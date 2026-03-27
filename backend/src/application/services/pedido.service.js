@@ -3,11 +3,11 @@
  * Incluye transacciones MongoDB para integridad de datos
  */
 const mongoose = require('mongoose');
-const Pedido = require('../../models/Pedido');
-const Mesa = require('../../models/Mesa');
-const Cliente = require('../../models/Cliente');
-const { NotFoundError, ConflictError } = require('../../utils/errors');
-const Logger = require('../../utils/logger');
+const Pedido = require('../../../models/Pedido');
+const Mesa = require('../../../models/Mesa');
+const Cliente = require('../../../models/Cliente');
+const { NotFoundError, ConflictError } = require('../../../utils/errors');
+const Logger = require('../../../utils/logger');
 
 class PedidoService {
   /**
