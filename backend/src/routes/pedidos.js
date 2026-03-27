@@ -172,11 +172,18 @@ router.put('/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/pedidos/:id
+// DELETE /api/pedidos/:id - Soft delete
 router.delete('/:id', auth, async (req, res) => {
   try {
-    await Pedido.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
+    const pedido = await Pedido.findById(req.params.id);
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    await pedido.softDelete();
+
+    // Emitir evento de actualización
+    emit.mesaActualizada(req.io, await Mesa.findById(pedido.mesaId));
+
+    res.json({ ok: true, message: 'Pedido eliminado (soft delete)' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

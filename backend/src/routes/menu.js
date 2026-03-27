@@ -28,8 +28,11 @@ router.put('/:id', auth, soloAdmin, async (req, res) => {
 
 router.delete('/:id', auth, soloAdmin, async (req, res) => {
   try {
-    await Producto.findByIdAndUpdate(req.params.id, { activo: false });
-    res.json({ ok: true });
+    const prod = await Producto.findById(req.params.id);
+    if (!prod) return res.status(404).json({ error: 'Producto no encontrado' });
+
+    await prod.softDelete();
+    res.json({ ok: true, message: 'Producto eliminado' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

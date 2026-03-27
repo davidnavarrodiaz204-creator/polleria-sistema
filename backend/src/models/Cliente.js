@@ -27,6 +27,29 @@ const clienteSchema = new mongoose.Schema({
   ultimaVisita:    { type: Date, default: null },
 
   activo: { type: Boolean, default: true },
+  // Soft delete
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
+
+// Middleware: auto-filtrar eliminados
+clienteSchema.pre(/^find/, function(next) {
+  if (!this.getQuery().includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+});
+
+// Método de instancia para soft delete
+clienteSchema.methods.softDelete = function() {
+  this.deletedAt = new Date();
+  return this.save();
+};
+
+// Índices para rendimiento
+clienteSchema.index({ numDoc: 1 }); // Búsqueda por DNI/RUC
+clienteSchema.index({ nombre: 'text' }); // Búsqueda por nombre
+clienteSchema.index({ deletedAt: 1 }); // Soft delete
+clienteSchema.index({ ultimaVisita: -1 }); // Últimos clientes activos
+clienteSchema.index({ totalCompras: -1 }); // Mejores clientes
 
 module.exports = mongoose.model('Cliente', clienteSchema);

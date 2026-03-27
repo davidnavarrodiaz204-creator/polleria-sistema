@@ -66,8 +66,10 @@ router.put('/:id', auth, async (req, res) => {
 
 router.delete('/:id', auth, async (req, res) => {
   try {
-    await Delivery.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
+    const delivery = await Delivery.findById(req.params.id);
+    if (!delivery) return res.status(404).json({ error: 'Delivery no encontrado' });
+    await delivery.softDelete();
+    res.json({ ok: true, message: 'Delivery eliminado' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

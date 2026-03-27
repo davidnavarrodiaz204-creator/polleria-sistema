@@ -229,8 +229,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const cliente = await Cliente.findByIdAndDelete(req.params.id);
+    const cliente = await Cliente.findById(req.params.id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    await cliente.softDelete();
     res.json({ message: 'Cliente eliminado correctamente' });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });

@@ -35,8 +35,10 @@ router.post('/', auth, async (req, res) => {
 
 router.delete('/:id', auth, soloAdmin, async (req, res) => {
   try {
-    await Egreso.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
+    const egreso = await Egreso.findById(req.params.id);
+    if (!egreso) return res.status(404).json({ error: 'Egreso no encontrado' });
+    await egreso.softDelete();
+    res.json({ ok: true, message: 'Egreso eliminado' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

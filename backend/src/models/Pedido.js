@@ -29,7 +29,23 @@ const pedidoSchema = new mongoose.Schema({
   // Comprobante
   tipoComprobante: { type: String, enum: ['ticket','boleta','factura','nota_credito'], default: 'ticket' },
   creadoEn:      { type: Date, default: Date.now },
+  // Soft delete
+  deletedAt:     { type: Date, default: null },
 }, { timestamps: true });
+
+// Middleware: auto-filtrar eliminados en queries find
+pedidoSchema.pre(/^find/, function(next) {
+  if (!this.getQuery().includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+});
+
+// Método de instancia para soft delete
+pedidoSchema.methods.softDelete = function() {
+  this.deletedAt = new Date();
+  return this.save();
+};
 
 // Autoincremento del número de pedido
 pedidoSchema.pre('save', async function (next) {
@@ -46,5 +62,10 @@ pedidoSchema.index({ tipoComprobante: 1, creadoEn: -1 });
 pedidoSchema.index({ clienteDoc: 1 });
 pedidoSchema.index({ estado: 1 });
 pedidoSchema.index({ numero: -1 });
+// Índices nuevos para rendimiento
+pedidoSchema.index({ deletedAt: 1 }); // Para soft delete
+pedidoSchema.index({ mesaId: 1, estado: 1 }); // Para consultas de mesa
+pedidoSchema.index({ tipo: 1, estado: 1 }); // Para dashboard
+pedidoSchema.index({ mozo: 1, creadoEn: -1 }); // Para reportes por mozo
 
 module.exports = mongoose.model('Pedido', pedidoSchema);
