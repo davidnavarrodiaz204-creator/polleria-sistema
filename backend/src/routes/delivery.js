@@ -3,12 +3,25 @@ const Delivery = require('../models/Delivery');
 const Pedido = require('../models/Pedido');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
+const paginate = require('../utils/paginate');
 
-router.get('/', auth, async (_req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    const deliveries = await Delivery.find().sort({ creadoEn: -1 }).limit(100);
-    res.json(deliveries);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { estado, page, limit } = req.query;
+    const filtro = estado ? { estado } : {};
+
+    const resultado = await paginate(Delivery, filtro, {
+      page,
+      limit,
+      sort: { creadoEn: -1 }
+    });
+
+    res.json({
+      success: true,
+      data: { deliveries: resultado.data },
+      pagination: resultado.pagination
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 router.post('/', auth, async (req, res) => {

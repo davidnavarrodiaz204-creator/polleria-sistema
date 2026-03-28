@@ -1,119 +1,177 @@
 /**
- * pedidos.js — Rutas de pedidos
- * Incluye historial con filtros por fecha, tipo, estado y comprobante.
+ * pedidos.js — Rutas de pedidos con paginación y service layer
+ * Ahora con: paginación, respuestas estandarizadas, filtros optimizados
  * Autor: David Navarro Diaz
  */
-const router  = require('express').Router();
-const Pedido  = require('../models/Pedido');
-const Mesa    = require('../models/Mesa');
-const Cliente = require('../models/Cliente');
+const router = require('express').Router();
+const Pedido = require('../models/Pedido');
+const Mesa = require('../models/Mesa');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
+const paginate = require('../utils/paginate');
+const Logger = require('../utils/logger');
 
-// GET /api/pedidos — pedidos de HOY (activos + pagados)
-// Importante: solo trae de hoy para que Caja calcule ventas correctamente
-router.get('/', auth, async (_req, res) => {
+// GET /api/pedidos — pedidos de HOY (sin paginación, para caja real-time)
+router.get('/', auth, async (req, res) => {
   try {
     const inicioHoy = new Date();
-    inicioHoy.setUTCHours(5, 0, 0, 0); // 00:00 hora Perú (UTC-5)
+    inicioHoy.setUTCHours(5, 0, 0, 0);
     const finHoy = new Date(inicioHoy);
     finHoy.setDate(finHoy.getDate() + 1);
+
     const pedidos = await Pedido.find({
       creadoEn: { $gte: inicioHoy, $lt: finHoy }
     }).sort({ creadoEn: -1 }).limit(500);
-    res.json(pedidos);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json({
+      success: true,
+      count: pedidos.length,
+      data: { pedidos }
+    });
+  } catch (err) {
+    Logger.error('Error en GET /pedidos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // GET /api/pedidos/cocina — solo los que cocina debe preparar
-router.get('/cocina', auth, async (_req, res) => {
+router.get('/cocina', auth, async (req, res) => {
   try {
-    const pedidos = await Pedido.find({ estado: { $in: ['en_cocina', 'preparando'] } }).sort({ creadoEn: 1 });
-    res.json(pedidos);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const pedidos = await Pedido.find({
+      estado: { $in: ['en_cocina', 'preparando'] }
+    }).sort({ creadoEn: 1 });
+
+    res.json({
+      success: true,
+      count: pedidos.length,
+      data: { pedidos }
+    });
+  } catch (err) {
+    Logger.error('Error en GET /pedidos/cocina:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-// GET /api/pedidos/historial — historial con filtros
-// Query params: fecha, desde, hasta, tipo, estado, comprobante, pagado, q (búsqueda)
+// GET /api/pedidos/historial — historial PAGINADO con filtros
+// Query params: fecha, desde, hasta, tipo, estado, comprobante, pagado, q, page, limit
 router.get('/historial', auth, async (req, res) => {
   try {
-    const { fecha, desde, hasta, tipo, estado, comprobante, pagado, q, limit = 100 } = req.query;
+    const { fecha, desde, hasta, tipo, estado, comprobante, pagado, q, page, limit } = req.query;
     const filtro = {};
 
-    // Filtro por fecha exacta (YYYY-MM-DD) o rango
-    if (fecha) {
-      const inicio = new Date(fecha + 'T05:00:00.000Z'); // medianoche Peru UTC-5
-      const fin    = new Date(inicio); fin.setDate(fin.getDate() + 1);
-      filtro.creadoEn = { $gte: inicio, $lt: fin };
-    } else if (desde || hasta) {
-      filtro.creadoEn = {};
-      if (desde) filtro.creadoEn.$gte = new Date(desde + 'T05:00:00.000Z');
-      if (hasta) { const h = new Date(hasta + 'T05:00:00.000Z'); h.setDate(h.getDate()+1); filtro.creadoEn.$lt = h; }
-    }
-
-    if (tipo)        filtro.tipo             = tipo;
-    if (estado)      filtro.estado           = estado;
-    if (comprobante) filtro.tipoComprobante  = comprobante;
-    if (pagado !== undefined) filtro.pagado  = pagado === 'true';
-
-    // Búsqueda por texto: nombre cliente, número pedido, mozo
-    if (q) {
-      const num = parseInt(q);
-      filtro.$or = [
-        { clienteNombre: { $regex: q, $options: 'i' } },
-        { clienteDoc:    { $regex: q, $options: 'i' } },
-        { mozo:          { $regex: q, $options: 'i' } },
-        ...(isNaN(num) ? [] : [{ numero: num }]),
-      ];
-    }
-
-    const pedidos = await Pedido.find(filtro).sort({ creadoEn: -1 }).limit(Number(limit));
-    res.json(pedidos);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// GET /api/pedidos/comprobantes — comprobantes emitidos (boletas y facturas)
-router.get('/comprobantes', auth, async (req, res) => {
-  try {
-    const { fecha, desde, hasta } = req.query;
-    const filtro = {
-      pagado: true,
-      tipoComprobante: { $in: ['boleta', 'factura', 'nota_credito'] }
-    };
-    // Filtro por fecha exacta o rango desde/hasta
+    // Filtro por fecha
     if (fecha) {
       const inicio = new Date(fecha + 'T05:00:00.000Z');
-      const fin    = new Date(inicio); fin.setDate(fin.getDate() + 1);
+      const fin = new Date(inicio);
+      fin.setDate(fin.getDate() + 1);
       filtro.creadoEn = { $gte: inicio, $lt: fin };
     } else if (desde || hasta) {
       filtro.creadoEn = {};
       if (desde) filtro.creadoEn.$gte = new Date(desde + 'T05:00:00.000Z');
       if (hasta) {
-        const finHasta = new Date(hasta + 'T05:00:00.000Z');
-        finHasta.setDate(finHasta.getDate() + 1);
-        filtro.creadoEn.$lt = finHasta;
+        const h = new Date(hasta + 'T05:00:00.000Z');
+        h.setDate(h.getDate() + 1);
+        filtro.creadoEn.$lt = h;
       }
     }
-    const pedidos = await Pedido.find(filtro).sort({ creadoEn: -1 }).limit(500);
-    res.json(pedidos);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    if (tipo) filtro.tipo = tipo;
+    if (estado) filtro.estado = estado;
+    if (comprobante) filtro.tipoComprobante = comprobante;
+    if (pagado !== undefined) filtro.pagado = pagado === 'true';
+
+    // Búsqueda de texto
+    if (q) {
+      const num = parseInt(q);
+      filtro.$or = [
+        { clienteNombre: { $regex: q, $options: 'i' } },
+        { clienteDoc: { $regex: q, $options: 'i' } },
+        { mozo: { $regex: q, $options: 'i' } },
+        ...(isNaN(num) ? [] : [{ numero: num }]),
+      ];
+    }
+
+    const resultado = await paginate(Pedido, filtro, {
+      page,
+      limit,
+      sort: { creadoEn: -1 },
+      populate: ['mesaId', { path: 'clienteId', select: 'nombre numDoc' }]
+    });
+
+    res.json({
+      success: true,
+      data: { pedidos: resultado.data },
+      pagination: resultado.pagination
+    });
+  } catch (err) {
+    Logger.error('Error en GET /pedidos/historial:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/pedidos/comprobantes — PAGINADO
+router.get('/comprobantes', auth, async (req, res) => {
+  try {
+    const { fecha, desde, hasta, page, limit } = req.query;
+    const filtro = {
+      pagado: true,
+      tipoComprobante: { $in: ['boleta', 'factura', 'nota_credito'] }
+    };
+
+    if (fecha) {
+      const inicio = new Date(fecha + 'T05:00:00.000Z');
+      const fin = new Date(inicio);
+      fin.setDate(fin.getDate() + 1);
+      filtro.creadoEn = { $gte: inicio, $lt: fin };
+    } else if (desde || hasta) {
+      filtro.creadoEn = {};
+      if (desde) filtro.creadoEn.$gte = new Date(desde + 'T05:00:00.000Z');
+      if (hasta) {
+        const h = new Date(hasta + 'T05:00:00.000Z');
+        h.setDate(h.getDate() + 1);
+        filtro.creadoEn.$lt = h;
+      }
+    }
+
+    const resultado = await paginate(Pedido, filtro, {
+      page,
+      limit,
+      sort: { creadoEn: -1 }
+    });
+
+    res.json({
+      success: true,
+      data: { pedidos: resultado.data },
+      pagination: resultado.pagination
+    });
+  } catch (err) {
+    Logger.error('Error en GET /pedidos/comprobantes:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // POST /api/pedidos — crear pedido
 router.post('/', auth, async (req, res) => {
   try {
     const { tipo, mesaId, mesaNumero, items, nota, metodoPago } = req.body;
-    if (!items?.length) return res.status(400).json({ error: 'El pedido necesita productos' });
 
-    const total    = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    if (!items?.length) {
+      return res.status(400).json({ success: false, message: 'El pedido necesita productos' });
+    }
+
+    const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
     const subTotal = Math.round((total / 1.18) * 100) / 100;
     const totalIGV = Math.round((total - subTotal) * 100) / 100;
 
     const pedido = await Pedido.create({
       tipo: tipo || 'mesa',
-      mesaId, mesaNumero,
+      mesaId,
+      mesaNumero,
       mozo: req.usuario.nombre,
-      items, total, subTotal, totalIGV,
+      items,
+      total,
+      subTotal,
+      totalIGV,
       nota: nota || '',
       metodoPago: metodoPago || 'efectivo',
     });
@@ -134,17 +192,32 @@ router.post('/', auth, async (req, res) => {
       mensaje: `${items.length} producto(s) · S/ ${total.toFixed(2)}`,
     });
 
-    res.status(201).json(pedido);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    Logger.info(`Pedido #${pedido.numero} creado por ${req.usuario.nombre}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Pedido creado exitosamente',
+      data: { pedido }
+    });
+  } catch (err) {
+    Logger.error('Error en POST /pedidos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // PUT /api/pedidos/:id — actualizar pedido
 router.put('/:id', auth, async (req, res) => {
   try {
     const anterior = await Pedido.findById(req.params.id);
-    if (!anterior) return res.status(404).json({ error: 'No encontrado' });
+    if (!anterior) {
+      return res.status(404).json({ success: false, message: 'Pedido no encontrado' });
+    }
 
-    const pedido = await Pedido.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const pedido = await Pedido.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
 
     if (req.body.estado === 'listo' && anterior.estado !== 'listo') {
       emit.pedidoListo(req.io, pedido);
@@ -156,35 +229,42 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     if (req.body.estado === 'entregado' && pedido.mesaId) {
-      await Mesa.findByIdAndUpdate(pedido.mesaId, { estado: 'lista' });
+      await Mesa.findByIdAndUpdate(pedido.mesaId, { estado: 'libre', mozo: null, pedidoActual: null });
       emit.mesaActualizada(req.io, await Mesa.findById(pedido.mesaId));
     }
 
-    // Actualizar estadísticas del cliente al pagar
-    if (req.body.pagado === true && !anterior.pagado && pedido.clienteId) {
-      await Cliente.findByIdAndUpdate(pedido.clienteId, {
-        $inc: { totalCompras: 1, montoAcumulado: pedido.total },
-        ultimaVisita: new Date(),
-      });
-    }
-
-    res.json(pedido);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    res.json({
+      success: true,
+      message: 'Pedido actualizado',
+      data: { pedido }
+    });
+  } catch (err) {
+    Logger.error('Error en PUT /pedidos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // DELETE /api/pedidos/:id - Soft delete
 router.delete('/:id', auth, async (req, res) => {
   try {
     const pedido = await Pedido.findById(req.params.id);
-    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (!pedido) {
+      return res.status(404).json({ success: false, message: 'Pedido no encontrado' });
+    }
 
     await pedido.softDelete();
 
-    // Emitir evento de actualización
-    emit.mesaActualizada(req.io, await Mesa.findById(pedido.mesaId));
+    if (pedido.mesaId) {
+      emit.mesaActualizada(req.io, await Mesa.findById(pedido.mesaId));
+    }
 
-    res.json({ ok: true, message: 'Pedido eliminado (soft delete)' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    Logger.info(`Pedido #${pedido.numero} eliminado (soft delete) por ${req.usuario.nombre}`);
+
+    res.json({ success: true, message: 'Pedido eliminado' });
+  } catch (err) {
+    Logger.error('Error en DELETE /pedidos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 module.exports = router;

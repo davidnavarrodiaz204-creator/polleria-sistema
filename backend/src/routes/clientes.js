@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Cliente = require('../models/Cliente');
 const { auth: authMiddleware } = require('../middleware/auth');
+const paginate = require('../utils/paginate');
 
 // ================================================================
 // CONSULTA DNI - APIs gratuitas en cascada
@@ -187,7 +188,7 @@ router.get('/consultar/:numero', authMiddleware, async (req, res) => {
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, page, limit } = req.query;
     const filtro = q
       ? { $or: [
           { nombre: { $regex: q, $options: 'i' } },
@@ -195,9 +196,21 @@ router.get('/', authMiddleware, async (req, res) => {
           { celular: { $regex: q, $options: 'i' } }
         ]}
       : {};
-    const clientes = await Cliente.find(filtro).sort({ createdAt: -1 });
-    res.json(clientes);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+
+    const resultado = await paginate(Cliente, filtro, {
+      page,
+      limit,
+      sort: { createdAt: -1 }
+    });
+
+    res.json({
+      success: true,
+      data: { clientes: resultado.data },
+      pagination: resultado.pagination
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 router.get('/:id', authMiddleware, async (req, res) => {
