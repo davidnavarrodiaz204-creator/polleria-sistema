@@ -3,6 +3,7 @@ const router = express.Router();
 const Cliente = require('../models/Cliente');
 const { auth: authMiddleware } = require('../middleware/auth');
 const paginate = require('../utils/paginate');
+const { cliente } = require('../validators');
 
 // ================================================================
 // CONSULTA DNI - APIs gratuitas en cascada
@@ -221,7 +222,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, cliente.crear, async (req, res) => {
   try {
     const cliente = new Cliente(req.body);
     await cliente.save();
@@ -232,7 +233,7 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, cliente.actualizar, async (req, res) => {
   try {
     const cliente = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });

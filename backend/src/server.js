@@ -90,12 +90,46 @@ app.all('*', (req, res) => res.status(404).json({
   success: false, message: `Ruta ${req.originalUrl} no encontrada`
 }));
 
-// Error handler
+// Error handler mejorado (MongoDB + Validation)
 app.use((err, _req, res, _next) => {
-  Logger.error(err);
-  res.status(err.status || 500).json({
+  let statusCode = err.status || 500;
+  let message = err.message || 'Error interno del servidor';
+  let code = 'INTERNAL_ERROR';
+
+  // Errores de MongoDB
+  if (err.name === 'CastError') {
+    statusCode = 400;
+    message = `ID inválido: ${err.value}`;
+    code = 'INVALID_ID';
+  } else if (err.code === 11000) {
+    // Duplicado
+    statusCode = 409;
+    const field = Object.keys(err.keyValue)[0];
+    message = `${field} ya existe en el sistema`;
+    code = 'DUPLICATE_ERROR';
+  } else if (err.name === 'ValidationError') {
+    // Validación de Mongoose
+    statusCode = 400;
+    const messages = Object.values(err.errors).map(e => e.message);
+    message = messages.join(', ');
+    code = 'VALIDATION_ERROR';
+  } else if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Token inválido';
+    code = 'INVALID_TOKEN';
+  } else if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Token expirado';
+    code = 'TOKEN_EXPIRED';
+  }
+
+  Logger.error(`[${statusCode}] ${message}`, { path: _req.path, method: _req.method });
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || 'Error interno del servidor'
+    message,
+    code,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 

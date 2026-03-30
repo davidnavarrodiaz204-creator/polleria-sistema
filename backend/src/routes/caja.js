@@ -13,6 +13,7 @@ const router = require('express').Router();
 const Caja   = require('../models/Caja');
 const Pedido = require('../models/Pedido');
 const Egreso = require('../models/Egreso');
+const { caja } = require('../validators');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 
@@ -50,7 +51,7 @@ router.get('/', auth, async (_req, res) => {
 });
 
 // POST /api/caja/abrir — abrir turno de caja
-router.post('/abrir', auth, soloCaja, async (req, res) => {
+router.post('/abrir', auth, soloCaja, caja.abrir, async (req, res) => {
   try {
     // Verificar que no haya otra caja abierta
     const yaAbierta = await Caja.findOne({ estado: 'abierta' });
@@ -69,7 +70,7 @@ router.post('/abrir', auth, soloCaja, async (req, res) => {
 });
 
 // POST /api/caja/cerrar — cerrar turno actual
-router.post('/cerrar', auth, soloCaja, async (req, res) => {
+router.post('/cerrar', auth, soloCaja, caja.cerrar, async (req, res) => {
   try {
     const caja = await Caja.findOne({ estado: 'abierta' }).sort({ createdAt: -1 });
     if (!caja) return res.status(404).json({ error: 'No hay caja abierta' });

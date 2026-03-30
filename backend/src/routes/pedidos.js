@@ -10,6 +10,7 @@ const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 const paginate = require('../utils/paginate');
 const Logger = require('../utils/logger');
+const { pedido } = require('../validators');
 
 // GET /api/pedidos — pedidos de HOY (sin paginación, para caja real-time)
 router.get('/', auth, async (req, res) => {
@@ -150,8 +151,8 @@ router.get('/comprobantes', auth, async (req, res) => {
   }
 });
 
-// POST /api/pedidos — crear pedido
-router.post('/', auth, async (req, res) => {
+// POST /api/pedidos — crear pedido (con validación)
+router.post('/', auth, pedido.crear, async (req, res) => {
   try {
     const { tipo, mesaId, mesaNumero, items, nota, metodoPago } = req.body;
 
@@ -205,8 +206,8 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// PUT /api/pedidos/:id — actualizar pedido
-router.put('/:id', auth, async (req, res) => {
+// PUT /api/pedidos/:id — actualizar pedido (con validación)
+router.put('/:id', auth, pedido.actualizar, async (req, res) => {
   try {
     const anterior = await Pedido.findById(req.params.id);
     if (!anterior) {
