@@ -21,6 +21,10 @@ const router  = express.Router();
 const { auth } = require('../middleware/auth');
 const Pedido  = require('../models/Pedido');
 const Config  = require('../models/Config');
+const Factura = require('../models/Factura');
+const facturacionService = require('../services/facturacion.service');
+const paginate = require('../utils/paginate');
+const Logger = require('../utils/logger');
 
 // URLs de Nubefact
 const NUBEFACT_URLS = {
@@ -355,5 +359,145 @@ router.get('/pdf/:pedidoId', auth, async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// ================================================================
+// NUEVOS ENDPOINTS v2.1 - Sistema Factura Model + Service
+// ================================================================
+
+// Solo admin para operaciones de gestión
+const soloAdmin = (req, res, next) => {
+  if (req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Solo administradores' });
+  }
+  next();
+};
+
+/**
+ * GET /api/facturacion/v2/comprobantes
+ * Listar todos los comprobantes con paginación
+ */
+router.get('/v2/comprobantes', auth, soloAdmin, async (req, res) => {
+  try {
+    const { estado, tipo, fechaDesde, fechaHasta, page, limit } = req.query;
+    const filtro = {};
+
+    if (estado) filtro.estado = estado;
+    if (tipo) filtro.tipoDocumento = tipo;
+    if (fechaDesde || fechaHasta) {
+      filtro.fechaEmision = {};
+      if (fechaDesde) filtro.fechaEmision.$gte = new Date(fechaDesde);
+      if (fechaHasta) filtro.fechaEmision.$lte = new Date(fechaHasta);
+    }
+
+    const resultado = await paginate(Factura, filtro, {
+      page,
+      limit,
+      sort: { fechaEmision: -1 },
+      populate: { path: 'pedidoId', select: 'numero mesaNumero' }
+    });
+
+    res.json({
+      success: true,
+      data: { comprobantes: resultado.data },
+      pagination: resultado.pagination
+    });
+  } catch (err) {
+    Logger.error('Error en GET /facturacion/v2/comprobantes:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/facturacion/v2/resumen/:anio/:mes
+ * Resumen mensual para SUNAT
+ */
+router.get('/v2/resumen/:anio/:mes', auth, soloAdmin, async (req, res) => {
+  try {
+    const { anio, mes } = req.params;
+    const inicio = new Date(anio, mes - 1, 1);
+    const fin = new Date(anio, mes, 0, 23, 59, 59);
+
+    const resumen = await facturacionService.obtenerResumen(inicio, fin);
+
+    res.json({
+      success: true,
+      data: {
+        periodo: `${mes}/${anio}`,
+        resumen,
+        totalGeneral: resumen.reduce((sum, r) => sum + r.total, 0),
+        totalIgv: resumen.reduce((sum, r) => sum + r.totalIgv, 0)
+      }
+    });
+  } catch (err) {
+    Logger.error('Error en GET /facturacion/v2/resumen:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/facturacion/v2/:id
+ * Detalle de comprobante
+ */
+router.get('/v2/:id', auth, soloAdmin, async (req, res) => {
+  try {
+    const factura = await Factura.findById(req.params.id)
+      .populate('pedidoId');
+
+    if (!factura) {
+      return res.status(404).json({ success: false, message: 'Comprobante no encontrado' });
+    }
+
+    res.json({ success: true, data: { factura } });
+  } catch (err) {
+    Logger.error('Error en GET /facturacion/v2/:id:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/facturacion/v2/generar/:pedidoId
+ * Generar comprobante desde pedido
+ */
+router.post('/v2/generar/:pedidoId', auth, soloAdmin, async (req, res) => {
+  try {
+    const factura = await facturacionService.crearDesdePedido(req.params.pedidoId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Comprobante generado',
+      data: { factura }
+    });
+  } catch (err) {
+    Logger.error('Error en POST /facturacion/v2/generar:', err);
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/facturacion/v2/nota-credito/:facturaId
+ * Emitir nota de crédito
+ */
+router.post('/v2/nota-credito/:facturaId', auth, soloAdmin, async (req, res) => {
+  try {
+    const { motivo } = req.body;
+    if (!motivo) {
+      return res.status(400).json({ success: false, message: 'Motivo requerido' });
+    }
+
+    const notaCredito = await facturacionService.emitirNotaCredito(
+      req.params.facturaId,
+      motivo
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Nota de crédito emitida',
+      data: { notaCredito }
+    });
+  } catch (err) {
+    Logger.error('Error en POST /facturacion/v2/nota-credito:', err);
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
 
 module.exports = router

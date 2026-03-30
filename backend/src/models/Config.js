@@ -19,6 +19,7 @@ const configSchema = new mongoose.Schema({
   ruc:           { type: String, default: '' },  // RUC de 11 dígitos
   razonSocial:   { type: String, default: '' },  // Razón social oficial SUNAT
   email:         { type: String, default: '' },  // Email del negocio
+  ubigeo:        { type: String, default: '150101' }, // Código ubigeo (Lima por defecto)
 
   // Series de comprobantes (configurables por el contador)
   serieTicket:   { type: String, default: 'T001' },
