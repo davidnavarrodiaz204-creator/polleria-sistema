@@ -1,10 +1,52 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { io } from 'socket.io-client'
 import api from '../utils/api'
 import { imprimirTicketCocina } from '../utils/print'
+import { useApp } from '../context/AppContext'
+
+// Sonido de notificación (generado con Web Audio API - no requiere archivo externo)
+const reproducirSonido = (volumen = 80) => {
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime) // La4
+    oscillator.type = 'sine'
+
+    gainNode.gain.setValueAtTime((volumen / 100) * 0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.5)
+
+    // Segundo beep
+    setTimeout(() => {
+      const osc2 = audioContext.createOscillator()
+      const gain2 = audioContext.createGain()
+      osc2.connect(gain2)
+      gain2.connect(audioContext.destination)
+      osc2.frequency.setValueAtTime(1047, audioContext.currentTime) // Do5
+      osc2.type = 'sine'
+      gain2.gain.setValueAtTime((volumen / 100) * 0.3, audioContext.currentTime)
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+      osc2.start(audioContext.currentTime)
+      osc2.stop(audioContext.currentTime + 0.3)
+    }, 150)
+  } catch (e) {
+    console.log('Audio no disponible')
+  }
+}
 
 export default function Cocina() {
   const [pedidos, setPedidos] = useState([])
+  const { config } = useApp()
+  const pedidosAnteriores = useRef([])
+  const sonidoActivo = config?.sonido?.activo ?? true
+  const volumen = config?.sonido?.volumen ?? 80
 
   const cargar = () => api.get('/pedidos/cocina').then(r => setPedidos(r.data))
 
@@ -12,10 +54,16 @@ export default function Cocina() {
     cargar()
     const BASE = import.meta.env.VITE_API_URL || ''
     const socket = io(BASE)
-    socket.on('nuevo_pedido', () => cargar())
+    socket.on('nuevo_pedido', (pedido) => {
+      cargar()
+      // Reproducir sonido si está activo
+      if (sonidoActivo) {
+        reproducirSonido(volumen)
+      }
+    })
     socket.on('pedido_listo', () => cargar())
     return () => socket.disconnect()
-  }, [])
+  }, [sonidoActivo, volumen])
 
   const minutos = (fecha) => Math.floor((Date.now() - new Date(fecha)) / 60000)
 

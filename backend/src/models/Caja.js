@@ -15,6 +15,14 @@ const cajaSchema = new mongoose.Schema({
   totalTarjeta:   { type: Number, default: 0 },
   totalTransferencia: { type: Number, default: 0 },
 
+  // Contador de pagos mixtos
+  totalPagosMixtos: { type: Number, default: 0 },
+  montoPagosMixtos: { type: Number, default: 0 },
+
+  // Descuentos aplicados
+  totalDescuentos:  { type: Number, default: 0 },
+  montoDescuentos:  { type: Number, default: 0 },
+
   // Totales por comprobante (base para facturación electrónica)
   totalTickets:   { type: Number, default: 0 },  // cant. tickets
   totalBoletas:   { type: Number, default: 0 },  // cant. boletas

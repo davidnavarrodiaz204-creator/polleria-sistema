@@ -7,15 +7,20 @@
  *  - Al cerrar turno se imprime resumen del turno, no del día completo
  *  - Solo admin y cajero pueden operar la caja
  *
+ * Ahora con: Soporte para pagos mixtos, descuentos y puntos
+ *
  * Autor: David Navarro Diaz
  */
 const router = require('express').Router();
 const Caja   = require('../models/Caja');
 const Pedido = require('../models/Pedido');
 const Egreso = require('../models/Egreso');
+const Cliente = require('../models/Cliente');
+const Config = require('../models/Config');
 const { caja } = require('../validators');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
+const puntosService = require('../services/puntosService');
 
 // Solo admin o cajero pueden operar caja
 const soloCaja = (req, res, next) => {
@@ -69,6 +74,55 @@ router.post('/abrir', auth, soloCaja, caja.abrir, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/caja/puntos/:clienteId — Obtener resumen de puntos de un cliente
+router.get('/puntos/:clienteId', auth, async (req, res) => {
+  try {
+    const resumen = await puntosService.obtenerResumenPuntos(req.params.clienteId);
+    if (!resumen) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+    }
+    res.json({ success: true, data: resumen });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/caja/canjear-puntos — Canjear puntos de un cliente
+router.post('/canjear-puntos', auth, async (req, res) => {
+  try {
+    const { clienteId, puntos } = req.body;
+
+    if (!clienteId || !puntos || puntos <= 0) {
+      return res.status(400).json({ success: false, message: 'Cliente y puntos requeridos' });
+    }
+
+    const config = await Config.findOne();
+    const configPuntos = config?.puntos || {};
+    const cliente = await Cliente.findById(clienteId);
+
+    // Verificar si puede canjear
+    const verificacion = puntosService.verificarCanje(cliente, puntos, configPuntos);
+    if (!verificacion.puede) {
+      return res.status(400).json({ success: false, message: verificacion.mensaje });
+    }
+
+    // Calcular valor
+    const valor = puntosService.calcularValorPuntos(puntos, configPuntos);
+
+    res.json({
+      success: true,
+      data: {
+        puntosCanjear: puntos,
+        valorDescuento: valor,
+        puntosRestantes: cliente.puntos - puntos,
+        mensaje: `Canje válido: ${puntos} puntos = S/ ${valor.toFixed(2)} de descuento`
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST /api/caja/cerrar — cerrar turno actual
 router.post('/cerrar', auth, soloCaja, caja.cerrar, async (req, res) => {
   try {
@@ -84,12 +138,51 @@ router.post('/cerrar', auth, soloCaja, caja.cerrar, async (req, res) => {
       createdAt: { $gte: inicio, $lt: fin }
     });
 
-    caja.totalVentas        = pedidos.reduce((s, p) => s + p.total, 0);
-    caja.totalEfectivo      = pedidos.filter(p => p.metodoPago === 'efectivo').reduce((s, p) => s + p.total, 0);
-    caja.totalYape          = pedidos.filter(p => p.metodoPago === 'yape').reduce((s, p) => s + p.total, 0);
-    caja.totalPlin          = pedidos.filter(p => p.metodoPago === 'plin').reduce((s, p) => s + p.total, 0);
-    caja.totalTarjeta       = pedidos.filter(p => p.metodoPago === 'tarjeta').reduce((s, p) => s + p.total, 0);
-    caja.totalTransferencia = pedidos.filter(p => p.metodoPago === 'transferencia').reduce((s, p) => s + p.total, 0);
+    // Calcular totales por método de pago (incluyendo pagos mixtos)
+    let totalEfectivo = 0, totalYape = 0, totalPlin = 0, totalTarjeta = 0, totalTransferencia = 0;
+    let totalVentas = 0, totalDescuentos = 0, pagosMixtosCount = 0, montoPagosMixtos = 0;
+
+    pedidos.forEach(p => {
+      const monto = p.total || 0;
+      totalVentas += monto;
+      totalDescuentos += p.descuento || 0;
+
+      // Si tiene pagos mixtos, distribuir por método
+      if (p.pagosMixtos && p.pagosMixtos.length > 0) {
+        pagosMixtosCount++;
+        montoPagosMixtos += monto;
+        p.pagosMixtos.forEach(pago => {
+          const montoPago = pago.monto || 0;
+          switch (pago.metodo) {
+            case 'efectivo':      totalEfectivo += montoPago; break;
+            case 'yape':          totalYape += montoPago; break;
+            case 'plin':          totalPlin += montoPago; break;
+            case 'tarjeta':       totalTarjeta += montoPago; break;
+            case 'transferencia': totalTransferencia += montoPago; break;
+          }
+        });
+      } else {
+        // Pago simple
+        switch (p.metodoPago) {
+          case 'efectivo':      totalEfectivo += monto; break;
+          case 'yape':          totalYape += monto; break;
+          case 'plin':          totalPlin += monto; break;
+          case 'tarjeta':       totalTarjeta += monto; break;
+          case 'transferencia': totalTransferencia += monto; break;
+        }
+      }
+    });
+
+    caja.totalVentas        = totalVentas;
+    caja.totalEfectivo      = totalEfectivo;
+    caja.totalYape          = totalYape;
+    caja.totalPlin          = totalPlin;
+    caja.totalTarjeta       = totalTarjeta;
+    caja.totalTransferencia = totalTransferencia;
+    caja.totalPagosMixtos   = pagosMixtosCount;
+    caja.montoPagosMixtos    = montoPagosMixtos;
+    caja.totalDescuentos    = pedidos.filter(p => p.descuento > 0).length;
+    caja.montoDescuentos    = totalDescuentos;
 
     const tickets  = pedidos.filter(p => p.tipoComprobante === 'ticket');
     const boletas  = pedidos.filter(p => p.tipoComprobante === 'boleta');
@@ -106,7 +199,7 @@ router.post('/cerrar', auth, soloCaja, caja.cerrar, async (req, res) => {
 
     caja.totalEgresos  = egresos.reduce((s, e) => s + e.monto, 0);
     caja.montoCierre   = Number(req.body.montoCierre) || 0;
-    caja.saldoFinal    = caja.montoApertura + caja.totalEfectivo - caja.totalEgresos;
+    caja.saldoFinal    = caja.montoApertura + totalEfectivo - caja.totalEgresos;
     caja.observaciones = req.body.observaciones || '';
     caja.cerradaPor    = req.usuario.nombre;
     caja.estado        = 'cerrada';

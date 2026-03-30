@@ -1,16 +1,20 @@
 /**
  * pedidos.js — Rutas de pedidos con paginación y service layer
  * Ahora con: paginación, respuestas estandarizadas, filtros optimizados
+ * Plus: Soporte para descuentos, puntos y pagos mixtos
  * Autor: David Navarro Diaz
  */
 const router = require('express').Router();
 const Pedido = require('../models/Pedido');
 const Mesa = require('../models/Mesa');
+const Cliente = require('../models/Cliente');
+const Config = require('../models/Config');
 const { auth } = require('../middleware/auth');
 const { emit } = require('../config/socket');
 const paginate = require('../utils/paginate');
 const Logger = require('../utils/logger');
 const { pedido } = require('../validators');
+const puntosService = require('../services/puntosService');
 
 // GET /api/pedidos — pedidos de HOY (sin paginación, para caja real-time)
 router.get('/', auth, async (req, res) => {
@@ -106,6 +110,25 @@ router.get('/historial', auth, async (req, res) => {
     });
   } catch (err) {
     Logger.error('Error en GET /pedidos/historial:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/pedidos/mesa/:mesaId — Historial por mesa
+router.get('/mesa/:mesaId', auth, async (req, res) => {
+  try {
+    const pedidos = await Pedido.find({
+      mesaId: req.params.mesaId,
+      pagado: true
+    }).sort({ creadoEn: -1 }).limit(20);
+
+    res.json({
+      success: true,
+      count: pedidos.length,
+      data: { pedidos }
+    });
+  } catch (err) {
+    Logger.error('Error en GET /pedidos/mesa:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -214,9 +237,28 @@ router.put('/:id', auth, pedido.actualizar, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Pedido no encontrado' });
     }
 
+    const updateData = { ...req.body };
+
+    // Si se está marcando como pagado, procesar puntos
+    if (req.body.pagado && !anterior.pagado) {
+      const config = await Config.findOne();
+      const configPuntos = config?.puntos || {};
+
+      // Procesar puntos si hay cliente
+      if (req.body.clienteId && configPuntos.activo) {
+        const puntosCanjeados = req.body.puntosCanjeados || 0;
+        const resultado = await puntosService.procesarPuntosCompra(
+          req.body.clienteId,
+          req.body.total || anterior.total,
+          puntosCanjeados
+        );
+        updateData.puntosGanados = resultado.puntosGanados;
+      }
+    }
+
     const pedido = await Pedido.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true }
     );
 

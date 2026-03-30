@@ -53,10 +53,51 @@ const configSchema = new mongoose.Schema({
     reservas:  { type: Boolean, default: false },
   },
 
+  // Configuración de impresora
   impresora: {
-    habilitada: { type: Boolean, default: false },
-    ancho:      { type: Number, default: 80 },
+    habilitada:    { type: Boolean, default: false },
+    ancho:         { type: Number, default: 80, enum: [58, 80] }, // mm
+    nombre:        { type: String, default: '' }, // Nombre referencial
+    copias:        { type: Number, default: 1 }, // Número de copias
+    imprimirCocina:{ type: Boolean, default: true }, // Imprimir ticket cocina automáticamente
   },
+
+  // Configuración de email (Nodemailer + Gmail)
+  email: {
+    activo:        { type: Boolean, default: false },
+    enviarBoleta:  { type: Boolean, default: true }, // Enviar boleta automáticamente
+    enviarTicket:  { type: Boolean, default: false },
+  },
+
+  // Configuración de tema/colores
+  tema: {
+    modo:          { type: String, enum: ['claro', 'oscuro', 'auto'], default: 'claro' },
+    nombreTema:    { type: String, default: 'default' }, // default, oliva, marino, burdeos, carbon
+    colorPrimario: { type: String, default: '#F5C518' },
+    colorTexto:    { type: String, default: '#212121' },
+    colorFondo:    { type: String, default: '#F9FAFB' },
+  },
+
+  // Configuración de sonido cocina
+  sonido: {
+    activo:        { type: Boolean, default: true },
+    volumen:       { type: Number, default: 80, min: 0, max: 100 },
+  },
+
+  // Sistema de puntos
+  puntos: {
+    activo:        { type: Boolean, default: true },
+    puntosPorSol:  { type: Number, default: 10 }, // 1 punto por cada S/10
+    valorPunto:    { type: Number, default: 0.10 }, // Cada punto vale S/0.10
+    minimoCanje:   { type: Number, default: 50 }, // Mínimo 50 puntos para canjear
+  },
+
+  // Descuentos
+  descuentos: {
+    activo:        { type: Boolean, default: true },
+    maxPorcentaje: { type: Number, default: 50 }, // Máximo 50% de descuento
+  },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Config', configSchema);

@@ -71,6 +71,7 @@ app.use('/api/backup', require('./routes/backup'));
 app.use('/api/caja', require('./routes/caja'));
 app.use('/api/egresos', require('./routes/egresos'));
 app.use('/api/reportes', require('./routes/reportes'));
+app.use('/api/email', require('./routes/email'));
 
 // Rutas opcionales
 ['inventario', 'reservas', 'facturacion', 'reset'].forEach(ruta => {

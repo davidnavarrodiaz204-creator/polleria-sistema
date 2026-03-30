@@ -18,10 +18,26 @@ const pedidoSchema = new mongoose.Schema({
   mozo:          { type: String, default: '' },
   items:         [itemPedidoSchema],
   total:         { type: Number, default: 0 },
+
+  // Descuentos
+  descuento:        { type: Number, default: 0 },
+  tipoDescuento:    { type: String, enum: ['porcentaje', 'monto'], default: 'monto' },
+  motivoDescuento:  { type: String, default: '' },
+
+  // Puntos canjeados en este pedido
+  puntosCanjeados:  { type: Number, default: 0 },
+  valorPuntos:      { type: Number, default: 0 }, // S/ equivalente
+
   nota:          { type: String, default: '' },
   estado:        { type: String, enum: ['en_cocina', 'preparando', 'listo', 'entregado', 'cancelado'], default: 'en_cocina' },
   pagado:        { type: Boolean, default: false },
   metodoPago:    { type: String, enum: ['efectivo', 'tarjeta', 'yape', 'plin', 'transferencia'], default: 'efectivo' },
+
+  // Pago mixto: detalle de cada método usado
+  pagosMixtos: [{
+    metodo: { type: String, enum: ['efectivo', 'tarjeta', 'yape', 'plin', 'transferencia'] },
+    monto:  { type: Number }
+  }],
   // Cliente vinculado
   clienteId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', default: null },
   clienteNombre: { type: String, default: '' },

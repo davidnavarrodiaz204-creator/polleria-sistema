@@ -41,11 +41,18 @@ export default function Caja() {
   const [cobro, setCobro] = useState({
     metodoPago:'efectivo', tipoComprobante:'ticket',
     numDoc:'', nombre:'', razonSocial:'', direccion:'',
-    celular:'', aceptaPromo:true, clienteId:null,
+    celular:'', email:'', aceptaPromo:true, clienteId:null,
     efectivoRecibido:0,
     // Pago mixto
     pagoMixto: false,
     pagos: [], // [{metodo, monto}]
+    // Descuento
+    descuento: 0,
+    tipoDescuento: 'monto',
+    // Puntos
+    usarPuntos: false,
+    puntosCanjeados: 0,
+    puntosInfo: null,
   })
   const [consultando, setConsultando] = useState(false)
   const [msgDoc, setMsgDoc]           = useState('')
@@ -66,16 +73,36 @@ export default function Caja() {
 
   const totalPagadoMixto = cobro.pagos.reduce((s, p) => s + (Number(p.monto)||0), 0)
   const efectivoEnMixto  = cobro.pagos.find(p => p.metodo === 'efectivo')
+
+  // Calcular descuento
+  const calcularDescuento = () => {
+    const subtotal = modalCobro?.total || 0
+    if (cobro.descuento <= 0) return 0
+    if (cobro.tipoDescuento === 'porcentaje') {
+      return Math.round(subtotal * cobro.descuento / 100 * 100) / 100
+    }
+    return Math.min(cobro.descuento, subtotal)
+  }
+  const montoDescuento = calcularDescuento()
+
+  // Calcular valor de puntos
+  const valorPuntos = cobro.usarPuntos && cobro.puntosCanjeados > 0
+    ? Math.round(cobro.puntosCanjeados * 0.10 * 100) / 100
+    : 0
+
+  // Total final
+  const totalConDescuento = Math.max(0, (modalCobro?.total || 0) - montoDescuento - valorPuntos)
+
   const vuelto = cobro.pagoMixto
-    ? Math.max(0, (Number(efectivoEnMixto?.monto)||0) - Math.max(0, (modalCobro?.total||0) - cobro.pagos.filter(p=>p.metodo!=='efectivo').reduce((s,p)=>s+(Number(p.monto)||0),0)))
+    ? Math.max(0, (Number(efectivoEnMixto?.monto)||0) - Math.max(0, totalConDescuento - cobro.pagos.filter(p=>p.metodo!=='efectivo').reduce((s,p)=>s+(Number(p.monto)||0),0)))
     : cobro.metodoPago === 'efectivo'
-      ? Math.max(0, Number(cobro.efectivoRecibido) - (modalCobro?.total || 0))
+      ? Math.max(0, Number(cobro.efectivoRecibido) - totalConDescuento)
       : 0
 
   // Consultar RUC/DNI automáticamente
   const consultarDoc = async (num) => {
     const limpio = num.replace(/\D/g, '')
-    setCobro(prev => ({ ...prev, numDoc: limpio, nombre:'', razonSocial:'', direccion:'', clienteId:null }))
+    setCobro(prev => ({ ...prev, numDoc: limpio, nombre:'', razonSocial:'', direccion:'', clienteId:null, email:'', puntosInfo:null }))
     setMsgDoc('')
     if (limpio.length !== 8 && limpio.length !== 11) return
     setConsultando(true)
@@ -88,9 +115,19 @@ export default function Caja() {
         razonSocial:  data.razonSocial || '',
         direccion:    data.direccion   || '',
         celular:      data.celular     || '',
+        email:        data.email       || '',
         aceptaPromo:  data.aceptaPromo ?? true,
         tipoComprobante: (limpio.length === 11) ? 'factura' : prev.tipoComprobante,
       }))
+
+      // Cargar puntos si existe cliente
+      if (data._id) {
+        try {
+          const { data: puntosData } = await api.get('/caja/puntos/' + data._id)
+          setCobro(prev => ({ ...prev, puntosInfo: puntosData.data }))
+        } catch {}
+      }
+
       setMsgDoc(data.fuenteLocal
         ? 'Cliente frecuente encontrado.'
         : data.apiError
@@ -141,6 +178,7 @@ export default function Caja() {
           razonSocial: cobro.razonSocial,
           direccion:   cobro.direccion,
           celular:     cobro.celular,
+          email:       cobro.email,
           aceptaPromo: cobro.aceptaPromo,
         }
         if (cobro.clienteId) {
@@ -173,7 +211,24 @@ export default function Caja() {
         clienteId,
         clienteNombre:   cobro.nombre,
         clienteDoc:      cobro.numDoc,
+        // Descuento
+        descuento:       cobro.descuento,
+        tipoDescuento:   cobro.tipoDescuento,
+        montoDescuento:  montoDescuento,
+        // Puntos
+        puntosCanjeados: cobro.usarPuntos ? cobro.puntosCanjeados : 0,
+        valorPuntos:     valorPuntos,
+        total:           totalConDescuento,
       })
+
+      // Enviar email si está configurado y hay email del cliente
+      if (config?.email?.activo && cobro.email) {
+        try {
+          await api.post('/email/enviar/' + modalCobro._id, { email: cobro.email })
+        } catch (e) {
+          console.log('No se pudo enviar email:', e.message)
+        }
+      }
 
       // Liberar mesa
       if (modalCobro.mesaId) {
@@ -183,11 +238,13 @@ export default function Caja() {
       // Imprimir comprobante
       imprimirBoleta({
         ...modalCobro,
+        total: totalConDescuento,
         tipoComprobante: cobro.tipoComprobante,
         ruc:         cobro.numDoc.length === 11 ? cobro.numDoc : '',
         razonSocial: cobro.razonSocial,
         metodoPago:  cobro.metodoPago,
         vuelto,
+        descuento:   montoDescuento,
       }, config)
 
       setModalCobro(null)
@@ -197,9 +254,8 @@ export default function Caja() {
 
   // Helpers pago mixto
   const agregarPago = () => {
-    const total = modalCobro?.total || 0
     const yaAsignado = cobro.pagos.reduce((s,p) => s+(Number(p.monto)||0), 0)
-    const resto = Math.max(0, total - yaAsignado)
+    const resto = Math.max(0, totalConDescuento - yaAsignado)
     setCobro(prev => ({ ...prev, pagos: [...prev.pagos, { metodo:'efectivo', monto: resto }] }))
   }
 
@@ -223,10 +279,15 @@ export default function Caja() {
     setCobro({
       metodoPago:'efectivo', tipoComprobante:'ticket',
       numDoc:'', nombre:'', razonSocial:'', direccion:'',
-      celular:'', aceptaPromo:true, clienteId:null,
+      celular:'', email:'', aceptaPromo:true, clienteId:null,
       efectivoRecibido: p.total,
       pagoMixto: false,
       pagos: [],
+      descuento: 0,
+      tipoDescuento: 'monto',
+      usarPuntos: false,
+      puntosCanjeados: 0,
+      puntosInfo: null,
     })
   }
 
@@ -424,9 +485,27 @@ export default function Caja() {
                   <span>S/ {(it.precio*it.cantidad).toFixed(2)}</span>
                 </div>
               ))}
-              <div style={{ borderTop:'1px dashed var(--gray-300)', marginTop:8, paddingTop:8, display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:18, fontFamily:'var(--font-display)' }}>
-                <span>TOTAL</span>
-                <span style={{ color:'var(--accent)' }}>S/ {modalCobro.total?.toFixed(2)}</span>
+              <div style={{ borderTop:'1px dashed var(--gray-300)', marginTop:8, paddingTop:8 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}>
+                  <span>Subtotal:</span>
+                  <span>S/ {modalCobro.total?.toFixed(2)}</span>
+                </div>
+                {montoDescuento > 0 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--success)' }}>
+                    <span>Descuento{cobro.tipoDescuento==='porcentaje'?` (${cobro.descuento}%)`:''}:</span>
+                    <span>- S/ {montoDescuento.toFixed(2)}</span>
+                  </div>
+                )}
+                {valorPuntos > 0 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--info)' }}>
+                    <span>Puntos canjeados ({cobro.puntosCanjeados}):</span>
+                    <span>- S/ {valorPuntos.toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:18, fontFamily:'var(--font-display)', marginTop:4 }}>
+                  <span>TOTAL</span>
+                  <span style={{ color:'var(--accent)' }}>S/ {totalConDescuento.toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
@@ -511,7 +590,7 @@ export default function Caja() {
                       ...prev,
                       pagoMixto: activo,
                       pagos: activo ? [
-                        { metodo:'efectivo', monto: modalCobro?.total || 0 }
+                        { metodo:'efectivo', monto: totalConDescuento }
                       ] : [],
                     }))
                   }}/>
@@ -521,6 +600,69 @@ export default function Caja() {
                 </div>
               </label>
             </div>
+
+            {/* Descuento */}
+            <div style={{marginBottom:12,background:'#FFF8E1',border:'2px solid #FFE082',borderRadius:'var(--radius-sm)',padding:'10px 14px'}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>🏷️ Descuento</div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <select style={{flex:1,padding:'8px',borderRadius:6,border:'1px solid var(--gray-300)'}}
+                  value={cobro.tipoDescuento}
+                  onChange={e=>setCobro(prev=>({...prev,tipoDescuento:e.target.value}))}>
+                  <option value="monto">S/ monto fijo</option>
+                  <option value="porcentaje">% porcentaje</option>
+                </select>
+                <input type="number" step="0.50" min="0"
+                  style={{flex:1,padding:'8px',borderRadius:6,border:'1px solid var(--gray-300)'}}
+                  placeholder={cobro.tipoDescuento==='porcentaje'?'%':'S/'}
+                  value={cobro.descuento||''}
+                  onChange={e=>setCobro(prev=>({...prev,descuento:Number(e.target.value)||0}))}/>
+              </div>
+              {montoDescuento > 0 && (
+                <div style={{fontSize:12,color:'var(--success)',marginTop:6,fontWeight:600}}>
+                  Descuento aplicado: -S/ {montoDescuento.toFixed(2)}
+                </div>
+              )}
+            </div>
+
+            {/* Puntos del cliente */}
+            {cobro.puntosInfo && cobro.puntosInfo.puntosActuales > 0 && (
+              <div style={{marginBottom:12,background:'#E8F5E9',border:'2px solid #A5D6A7',borderRadius:'var(--radius-sm)',padding:'10px 14px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:13}}>🎁 Puntos disponibles: <span style={{color:'var(--success)'}}>{cobro.puntosInfo.puntosActuales}</span></div>
+                  <div style={{fontSize:11,color:'var(--gray-500)'}}>= S/ {cobro.puntosInfo.valorDisponible?.toFixed(2)}</div>
+                </div>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+                  <input type="checkbox" checked={cobro.usarPuntos}
+                    onChange={e=>setCobro(prev=>({
+                      ...prev,
+                      usarPuntos: e.target.checked,
+                      puntosCanjeados: e.target.checked ? Math.min(cobro.puntosInfo.puntosActuales, cobro.puntosInfo.minimoCanje) : 0
+                    }))}/>
+                  <span style={{fontSize:13}}>Usar puntos como descuento</span>
+                </label>
+                {cobro.usarPuntos && (
+                  <div style={{marginTop:8,display:'flex',gap:8,alignItems:'center'}}>
+                    <input type="number" min={cobro.puntosInfo.minimoCanje} max={cobro.puntosInfo.puntosActuales}
+                      style={{flex:1,padding:'8px',borderRadius:6,border:'1px solid var(--gray-300)'}}
+                      value={cobro.puntosCanjeados}
+                      onChange={e=>setCobro(prev=>({...prev,puntosCanjeados:Number(e.target.value)||0}))}/>
+                    <span style={{fontSize:12,color:'var(--gray-500)'}}>
+                      = S/ {(cobro.puntosCanjeados * 0.10).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Email del cliente */}
+            {cobro.numDoc && (
+              <div className="form-group">
+                <label className="form-label">Email para enviar comprobante</label>
+                <input className="form-input" type="email" placeholder="cliente@email.com"
+                  value={cobro.email}
+                  onChange={e=>setCobro(prev=>({...prev,email:e.target.value}))}/>
+              </div>
+            )}
 
             {/* Pago simple */}
             {!cobro.pagoMixto && (
@@ -566,7 +708,7 @@ export default function Caja() {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                   <label className="form-label" style={{margin:0}}>Pagos ({cobro.pagos.length})</label>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={agregarPago}
-                    disabled={totalPagadoMixto >= (modalCobro?.total||0)}>
+                    disabled={totalPagadoMixto >= totalConDescuento}>
                     + Agregar método
                   </button>
                 </div>
@@ -591,18 +733,18 @@ export default function Caja() {
                 <div style={{background:'var(--gray-50)',borderRadius:'var(--radius-sm)',padding:'10px 14px',marginTop:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
                     <span>Total a pagar:</span>
-                    <strong>S/ {(modalCobro?.total||0).toFixed(2)}</strong>
+                    <strong>S/ {totalConDescuento.toFixed(2)}</strong>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
                     <span>Total asignado:</span>
-                    <strong style={{color:totalPagadoMixto>=(modalCobro?.total||0)?'var(--success)':'var(--warning)'}}>
+                    <strong style={{color:totalPagadoMixto>=totalConDescuento?'var(--success)':'var(--warning)'}}>
                       S/ {totalPagadoMixto.toFixed(2)}
                     </strong>
                   </div>
-                  {totalPagadoMixto < (modalCobro?.total||0) && (
+                  {totalPagadoMixto < totalConDescuento && (
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'var(--danger)',fontWeight:700}}>
                       <span>Falta:</span>
-                      <span>S/ {((modalCobro?.total||0) - totalPagadoMixto).toFixed(2)}</span>
+                      <span>S/ {(totalConDescuento - totalPagadoMixto).toFixed(2)}</span>
                     </div>
                   )}
                   {vuelto > 0 && (
@@ -618,9 +760,9 @@ export default function Caja() {
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={()=>setModalCobro(null)}>Cancelar</button>
               <button className="btn btn-primary" style={{ fontSize:15 }} onClick={cobrarPedido}
-                disabled={cobro.pagoMixto && totalPagadoMixto < (modalCobro?.total||0)}>
-                {cobro.pagoMixto && totalPagadoMixto < (modalCobro?.total||0)
-                  ? `Falta S/ ${((modalCobro?.total||0)-totalPagadoMixto).toFixed(2)}`
+                disabled={cobro.pagoMixto && totalPagadoMixto < totalConDescuento}>
+                {cobro.pagoMixto && totalPagadoMixto < totalConDescuento
+                  ? `Falta S/ ${(totalConDescuento-totalPagadoMixto).toFixed(2)}`
                   : 'Cobrar e Imprimir'}
               </button>
             </div>

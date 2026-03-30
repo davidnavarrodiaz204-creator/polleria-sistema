@@ -20,6 +20,11 @@ const clienteSchema = new mongoose.Schema({
   // Marketing
   aceptaPromo:  { type: Boolean, default: true },
   cumpleanos:   { type: String, default: '' },   // MM-DD
+  fechaNacimiento: { type: String, default: '' }, // YYYY-MM-DD (completo de RENIEC)
+
+  // Sistema de puntos
+  puntos:          { type: Number, default: 0 },
+  puntosCanjeados: { type: Number, default: 0 },  // Total puntos canjeados históricamente
 
   // Estadísticas (se actualizan al cobrar)
   totalCompras:    { type: Number, default: 0 },
@@ -51,5 +56,6 @@ clienteSchema.index({ nombre: 'text' }); // Búsqueda por nombre
 clienteSchema.index({ deletedAt: 1 }); // Soft delete
 clienteSchema.index({ ultimaVisita: -1 }); // Últimos clientes activos
 clienteSchema.index({ totalCompras: -1 }); // Mejores clientes
+clienteSchema.index({ puntos: -1 }); // Clientes con más puntos
 
 module.exports = mongoose.model('Cliente', clienteSchema);
